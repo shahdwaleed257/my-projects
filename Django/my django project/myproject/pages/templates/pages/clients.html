@@ -1,0 +1,57 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+
+<div class="top-header">
+    <h2>Clients</h2>
+    <p>Manage your clients easily</p>
+</div>
+
+<div class="table-container">
+
+    <table>
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Image</th>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Phone</th>
+                <th>Company</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+
+        <tbody>
+            {% for client in clients %}
+            <tr>
+                <td>{{ forloop.counter }}</td>
+
+                <td>
+                    {% if client.image %}
+                        <img src="{% static 'images/' %}{{ client.image }}">
+                    {% else %}
+                        -
+                    {% endif %}
+                </td>
+
+                <td>{{ client.name }}</td>
+                <td>{{ client.email }}</td>
+                <td>{{ client.phone }}</td>
+                <td>{{ client.company }}</td>
+
+                <td>
+                    <span class="status {{ client.status|lower }}">
+                        {{ client.status }}
+                    </span>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+
+    </table>
+
+</div>
+
+{% endblock %}

@@ -1,0 +1,47 @@
+{% load static %}
+<!DOCTYPE html>
+<html>
+<head>
+    <link rel="stylesheet" href="{% static 'css/style.css' %}?v=5">
+</head>
+<body>
+
+<div class="layout">
+
+    <!-- Sidebar -->
+<div class="sidebar">
+
+    <h2>Business Portal</h2>
+    
+
+    <!-- المينيو -->
+    <div class="menu">
+        <a href="{% url 'home' %}">Dashboard</a>
+        <a href="{% url 'clients' %}">Clients</a>
+
+        <a href="#">
+            Orders
+        </a>
+
+        <a href="#">
+            Services
+        </a>
+    </div>
+
+    <!-- تحت -->
+    <div class="bottom-menu">
+        <a href="#">Settings</a>
+    
+    <a href="#" class="logout">Log out</a>
+    </div>
+
+</div>
+    <!-- Main -->
+    <div class="main">
+        {% block content %}{% endblock %}
+    </div>
+
+</div>
+
+</body>
+</html>
