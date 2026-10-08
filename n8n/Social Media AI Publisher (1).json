@@ -1,0 +1,626 @@
+{
+  "name": "Social Media AI Publisher",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 10
+            }
+          ]
+        }
+      },
+      "id": "ab5e1e37-e744-42c6-a637-8f06e1040869",
+      "name": "Daily Cron",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1712,
+        2784
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "80903355-1844-4cd5-91e8-14cab8783426",
+      "name": "Set Variables",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [
+        -1392,
+        2784
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const content = $input.first().json;\nconst raw = content.message?.content || content.choices?.[0]?.message?.content || '';\nlet parsed;\ntry {\n  parsed = JSON.parse(raw);\n} catch(e) {\n  const match = raw.match(/\\{[\\s\\S]*\\}/);\n  parsed = match ? JSON.parse(match[0]) : {\n    full_post: raw.slice(0, 200),\n    tweet: raw.slice(0, 250),\n    title: 'Daily Post',\n    description: raw.slice(0, 150)\n  };\n}\nconst vars = $('Set Variables').first().json;\nreturn [{ json: {\n  full_post: parsed.full_post || '',\n  tweet: parsed.tweet || parsed.full_post || '',\n  title: parsed.title || '',\n  description: parsed.description || '',\n  image_url: vars.image_url,\n  today: vars.today,\n  brand: vars.brand\n}}];"
+      },
+      "id": "178b655e-f860-49c5-a8bf-c60c68f84b8c",
+      "name": "Parse AI Output",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -608,
+        2784
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v25.0/1001072433087557/feed",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "access_token",
+              "value": "EAAc2oEY2R5MBRxLteTleHpuHe1yRgqoZA9OXnZAsOKFmbSdhpWGOZBj5UhJiUo2oEbAMoaB3YEke7FBYyzxyHsvatuhgglnkj1tgZCOaNBDWCSFdFGYeSHxfjymegUxi2bNchsqlXwEVkw20IiBbgeRtjZBKBnpLuGCBrSEnydhIJ8m5qSWFwyTIvffvs6ZBpkJ8cDDwheYbuP4CShi2QZA08hehMZBJdqz1IhPSYsQZD"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "message",
+              "value": "={{ $('Message a model').item.json.content.parts[0].text }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "44542b0e-75d8-47da-bb4b-7453af295268",
+      "name": "Post to Facebook",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        -48,
+        2416
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "7687237686",
+        "text": "={{ $('Message a model').item.json.content.parts[0].text }}",
+        "additionalFields": {
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "2d15e6bb-2744-4ae2-9070-3f2bfd3ea47b",
+      "name": "Post to Telegram",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [
+        -48,
+        2928
+      ],
+      "webhookId": "552107f0-f4f1-49cb-9497-cec205475362",
+      "credentials": {
+        "telegramApi": {
+          "id": "vDhR7K1uo9XbObUm",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v18.0/17841479596916927/media",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "image_url",
+              "value": "={{ $json.data.image.url }}"
+            },
+            {
+              "name": "caption",
+              "value": "=={{ $('Parse AI Output').first().json.full_post }}"
+            },
+            {
+              "name": "access_token",
+              "value": "EAAc2oEY2R5MBRxLteTleHpuHe1yRgqoZA9OXnZAsOKFmbSdhpWGOZBj5UhJiUo2oEbAMoaB3YEke7FBYyzxyHsvatuhgglnkj1tgZCOaNBDWCSFdFGYeSHxfjymegUxi2bNchsqlXwEVkw20IiBbgeRtjZBKBnpLuGCBrSEnydhIJ8m5qSWFwyTIvffvs6ZBpkJ8cDDwheYbuP4CShi2QZA08hehMZBJdqz1IhPSYsQZD"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "2f3ded87-19a3-493c-806c-bef782cf9dcb",
+      "name": "Instagram — Create Media",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        -416,
+        3312
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v18.0/17841479596916927/media_publish",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "creation_id",
+              "value": "17871671946653231"
+            },
+            {
+              "name": "access_token",
+              "value": "EAAc2oEY2R5MBR0AmhTjqQffES1tf7kFSklHDJmZCKZBWUmrgg91ZBZAxZCNSko8j3peI1hXoLNjDW8RpSUsZCMOZA0HU97RoL1XauGO7zoNDoy8RWueGCFSvnoUoyxR4kHA00B4BvOhEdv5veuspImZCMzsZBo2njQwnpqxnUqLaZBCXv56KI9zavQbZBtSBQtdu2IMGLQCTcvx8E8rTJPBf063p1RSgIjDzAB0BAi6tTZA9ZBgoug0cpgqn3nmygOvkxgTp5neh5EqUKTTAZD"
+            }
+          ]
+        },
+        "sendBody": true,
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "eaeaf0b7-5e8e-4b20-a1e0-b5dd08152c2d",
+      "name": "Instagram — Publish",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        -32,
+        3312
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "00368aaf-4a31-4ba1-9ef5-0af154081184",
+      "name": "Merge Results",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2,
+      "position": [
+        464,
+        2800
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "1F-3iCJAVk4k_Efc4OCHSdYIyV9hymP9OX8Mf0RVaPuc",
+          "mode": "list",
+          "cachedResultName": "Social Media Log",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1F-3iCJAVk4k_Efc4OCHSdYIyV9hymP9OX8Mf0RVaPuc/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1F-3iCJAVk4k_Efc4OCHSdYIyV9hymP9OX8Mf0RVaPuc/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Date ": "={{ $('Merge Results').item.json.headers.date }}",
+            "Content": "={{ $json.content }} ",
+            "Status": "={{ $json.status }} ",
+            "Platforms": "={{ $json.platforms }}"
+          },
+          "matchingColumns": [
+            "Date "
+          ],
+          "schema": [
+            {
+              "id": "Date ",
+              "displayName": "Date ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Content",
+              "displayName": "Content",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Platforms",
+              "displayName": "Platforms",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "155705ae-abe4-4d84-b880-c35e2e23d910",
+      "name": "Log to Google Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        1184,
+        2800
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OH8U1LOgH0VZEUTk",
+          "name": "Google Sheets OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "models/gemini-3-flash-preview"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=You are an expert AI content creator. Based on the input data or topic, generate a short, professional, and engaging social media post about Artificial Intelligence (AI).\n\nThe output must be a single, direct text paragraph, exactly like this style:\n\"Stay ahead of the curve with the latest trending topics! From AI advancements to sustainable living, we've got you covered. Join the conversation and share your thoughts! #TrendingTopics #StayInformed\"\n\nStrict Rules:\n- Output only the final post content.\n- Do NOT wrap it in JSON, code blocks, or markdown.\n- Do NOT include any greetings, intros, or outros.\n- Keep it concise, simple, and professional.\n- Focus entirely on AI topics.\nYour response must be in strict JSON format only. Do not include any intro, outro, or explanation. Use the exact key below:\n\n{\n  \"generated_content\": \"Write the complete, concise, and professional AI post here, including relevant emojis and hashtags.\"\n}"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        -1040,
+        2784
+      ],
+      "id": "8f0d5e88-e9ce-408b-a0d8-d77ba6e15710",
+      "name": "Message a model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "EsRgGyoQBXcEVRf3",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "webhook",
+        "content": "={{ $('Message a model').item.json.content.parts[0].text }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.discord",
+      "typeVersion": 2,
+      "position": [
+        -48,
+        2640
+      ],
+      "id": "1d533c83-bdcf-4fec-b84c-9df539c36bd0",
+      "name": "Discord",
+      "webhookId": "44851563-b3bc-49bb-816e-0ea2af440857",
+      "credentials": {
+        "discordWebhookApi": {
+          "id": "w23I74bLxcbT7nQE",
+          "name": "Discord Webhook account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://router.huggingface.co/hf-inference/models/black-forest-labs/FLUX.1-schnell",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer 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"
+            },
+            {
+              "name": "Accept",
+              "value": "image/png"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"inputs\": \"={{ $('Parse AI Output').first().json.title }}, professional social media image, vibrant, high quality\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -1040,
+        3312
+      ],
+      "id": "5cad3599-c309-4f4e-8650-87bc3dcc17a4",
+      "name": "Stable Diffusion",
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.imgbb.com/1/upload?key=ce8761f18cfbf769b8bbdedc0e67c5ee",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "image",
+              "inputDataFieldName": "data"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -736,
+        3312
+      ],
+      "id": "514f81db-d053-4334-8aec-0307021f22d9",
+      "name": "imgbb"
+    },
+    {
+      "parameters": {
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.2,
+      "position": [
+        800,
+        3088
+      ],
+      "id": "4da074d6-f056-4316-a8d6-9baba0e737d6",
+      "name": "Get a record",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ixthIacp77N7xVKq",
+          "name": "Airtable Personal Access Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": " const items = $input.all();\nconst vars = $('Set Variables').first().json;\nconst parsed = $('Parse AI Output').first().json;\n\nconst platforms = items.map(item => {\n  const data = item.json;\n  if (data.error) return 'Failed';\n  return 'Success';\n}).join(', ');\n\nreturn [{\n  json: {\n    date: vars.today,\n    content: parsed.full_post,\n    status: items.some(i => i.json.error) ? 'Partial' : 'Published',\n    platforms: 'Facebook, Instagram, Discord, Telegram, Twitter',\n    image_url: parsed.image_url || '',\n    error_log: items.filter(i => i.json.error).map(i => JSON.stringify(i.json.error)).join(' | ')\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        816,
+        2800
+      ],
+      "id": "d4cf1d21-9a9d-4355-8678-a5dbe37fdc1e",
+      "name": "Code in JavaScript"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Daily Cron": {
+      "main": [
+        [
+          {
+            "node": "Set Variables",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Variables": {
+      "main": [
+        [
+          {
+            "node": "Message a model",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse AI Output": {
+      "main": [
+        [
+          {
+            "node": "Post to Facebook",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Post to Telegram",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Discord",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Instagram — Publish",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Stable Diffusion",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Post to Facebook": {
+      "main": [
+        [
+          {
+            "node": "Merge Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Post to Telegram": {
+      "main": [
+        [
+          {
+            "node": "Merge Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Results": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message a model": {
+      "main": [
+        [
+          {
+            "node": "Parse AI Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Discord": {
+      "main": [
+        [
+          {
+            "node": "Merge Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Stable Diffusion": {
+      "main": [
+        [
+          {
+            "node": "imgbb",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Instagram — Create Media": {
+      "main": [
+        [
+          {
+            "node": "Instagram — Publish",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Instagram — Publish": {
+      "main": [
+        [
+          {
+            "node": "Merge Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "imgbb": {
+      "main": [
+        [
+          {
+            "node": "Instagram — Create Media",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log to Google Sheets": {
+      "main": [
+        []
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Log to Google Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "3f7b5c33-2075-4796-b500-55ca526a73dc",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "287392acafe45090e4b5da8a4817bcfe33893c98b709a266a631beb54cfc8ca2"
+  },
+  "nodeGroups": [],
+  "id": "oNE6wj5dVGSxSM00",
+  "tags": []
+}

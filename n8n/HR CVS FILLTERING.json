@@ -1,0 +1,668 @@
+{
+  "name": "HR CVS FILLTERING",
+  "nodes": [
+    {
+      "parameters": {
+        "formTitle": "Career Application Form",
+        "formDescription": "Please fill in your details and upload your CV",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Full Name",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Email",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Phone Number",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Job Title",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Upload CV",
+              "fieldType": "file",
+              "multipleFiles": false,
+              "acceptFileTypes": ".pdf",
+              "requiredField": true
+            }
+          ]
+        },
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "e0180afe-2e10-426a-9720-ad83a919f82a",
+      "name": "Career Application Form",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "ef903802-62c8-40cf-b23e-507dea41bbc7"
+    },
+    {
+      "parameters": {
+        "jsCode": "const formData = $input.first().json;\n\nconst name = formData['Full Name'] || '';\nconst email = formData['Email'] || '';\nconst phone = formData['Phone Number'] || '';\nconst jobTitle = formData['Job Title'] || '';\n\n// Get the CV binary file\nconst cvBinary = $input.first().binary?.['Upload_CV'];\n\nif (!cvBinary) {\n  throw new Error('No CV file uploaded!');\n}\n\nreturn [{\n  json: {\n    name,\n    email,\n    phone,\n    jobTitle\n  },\n  binary: {\n    cv: cvBinary\n  }\n}];"
+      },
+      "id": "02454fa3-e205-4e29-8b61-d292ec0b6fec",
+      "name": "Extract Form Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "binaryPropertyName": "cv",
+        "options": {}
+      },
+      "id": "599d9682-e9a2-435b-b382-43d7f72753d9",
+      "name": "Extract PDF Text",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        480,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const pdfData = $input.first().json;\nconst prevData = $('Extract Form Data').item.json;\n\nreturn [{\n  json: {\n    name: prevData.name,\n    email: prevData.email,\n    phone: prevData.phone,\n    jobTitle: prevData.jobTitle,\n    cvText: pdfData.text || ''\n  }\n}];"
+      },
+      "id": "8d844e4e-6f1a-4d1b-8831-e5117a63a1ae",
+      "name": "Combine CV Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1wRkZu-db1yvNI1XRcuoOVqgc8423PNzrgCWnY4v-JiI",
+          "mode": "list",
+          "cachedResultName": "Jobs",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1wRkZu-db1yvNI1XRcuoOVqgc8423PNzrgCWnY4v-JiI/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "الورقة1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1wRkZu-db1yvNI1XRcuoOVqgc8423PNzrgCWnY4v-JiI/edit#gid=0"
+        },
+        "options": {}
+      },
+      "id": "f2b4a93a-3b94-4c3a-9c02-cf68ffb57c14",
+      "name": "Get Job Description",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        960,
+        0
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "CzvyMzZ3ynPsdSrX",
+          "name": "Google Sheets OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const cvData = $('Combine CV Data').item.json;\nconst jobData = $input.first().json;\n\nif (!jobData || !jobData.job_description) {\n  throw new Error(`No job found for title: ${cvData.jobTitle}`);\n}\n\nreturn [{\n  json: {\n    name: cvData.name,\n    email: cvData.email,\n    phone: cvData.phone,\n    jobTitle: cvData.jobTitle,\n    cvText: cvData.cvText,\n    jobDescription: jobData.job_description,\n    requiredSkills: jobData.required_skills,\n    minExperience: jobData.min_experience,\n    passingScore: jobData.passing_score,\n    scoringNotes: jobData.scoring_notes\n  }\n}];"
+      },
+      "id": "0d40c47e-9ad2-4c0b-8f58-5716d5b57cda",
+      "name": "Merge CV with Job",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are an expert HR specialist and CV analyst.\n\nYour job is to carefully read the CV and compare it against the Job Description, then score the candidate objectively.\n\nJob Title: {{ $json.jobTitle }}\n\nJob Description:\n{{ $json.jobDescription }}\n\nRequired Skills:\n{{ $json.requiredSkills }}\n\nMinimum Experience Required: {{ $json.minExperience }} years\n\nPassing Score: {{ $json.passingScore }}\n\nScoring Notes:\n{{ $json.scoringNotes }}\n\nCV Text:\n{{ $json.cvText }}\n\n---\n\nReturn ONLY a valid JSON object, no extra text, no markdown backticks:\n\n{\n  \"name\": \"candidate full name\",\n  \"email\": \"candidate email\",\n  \"phone\": \"candidate phone number\",\n  \"job_title\": \"job title they applied for\",\n  \"years_experience\": 0,\n  \"matched_skills\": [\"skill1\", \"skill2\"],\n  \"missing_skills\": [\"skill1\", \"skill2\"],\n  \"score\": 0,\n  \"recommendation\": \"accept/reject/maybe\",\n  \"reason\": \"brief explanation of the score and recommendation\"\n}\n\nScoring criteria:\n- Skills match: 40%\n- Years of experience: 30%\n- Education relevance: 20%\n- Overall CV quality: 10%\n\nIf score is above passing score recommend accept, otherwise recommend reject."
+      },
+      "id": "c035bc25-be0a-4692-b5ab-2baa7e2d60a9",
+      "name": "AI CV Analyzer",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.5,
+      "position": [
+        1440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list"
+        },
+        "options": {
+          "temperature": 0.2
+        }
+      },
+      "id": "d5acbfe5-2be0-4031-bb72-c5752d4914ee",
+      "name": "OpenAI Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        1440,
+        208
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "6UMY3odPNeRp6M3Z",
+          "name": "n8n free OpenAI API credits"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $input.first().json.text || $input.first().json.output || '';\n\nlet parsed;\ntry {\n  const clean = response.replace(/```json|```/g, '').trim();\n  parsed = JSON.parse(clean);\n} catch(e) {\n  throw new Error('Failed to parse AI response: ' + response);\n}\n\nconst cvData = $('Merge CV with Job').item.json;\n\nreturn [{\n  json: {\n    name: parsed.name || cvData.name,\n    email: parsed.email || cvData.email,\n    phone: parsed.phone || cvData.phone,\n    job_title: parsed.job_title || cvData.jobTitle,\n    years_experience: parsed.years_experience || 0,\n    matched_skills: Array.isArray(parsed.matched_skills) ? parsed.matched_skills.join(', ') : '',\n    missing_skills: Array.isArray(parsed.missing_skills) ? parsed.missing_skills.join(', ') : '',\n    score: parsed.score || 0,\n    recommendation: parsed.recommendation || 'reject',\n    reason: parsed.reason || '',\n    submitted_at: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "93aaa62b-af63-45e3-a6c3-e949e48fbd8e",
+      "name": "Parse AI Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1728,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "formTitle": "HR Job Description Form",
+        "formDescription": "Add a new job offer and its description for CV filtering",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Job Title",
+              "placeholder": "e.g. Software Tester, HR Manager",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Department",
+              "placeholder": "e.g. Engineering & Technology",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Employment Type",
+              "fieldType": "dropdown",
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "Full-time"
+                  },
+                  {
+                    "option": "Part-time"
+                  },
+                  {
+                    "option": "Contract"
+                  },
+                  {
+                    "option": "Internship"
+                  },
+                  {
+                    "option": "Freelance"
+                  }
+                ]
+              },
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Minimum Experience (years)",
+              "fieldType": "number",
+              "placeholder": "e.g. 2",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Passing Score",
+              "fieldType": "number",
+              "placeholder": "e.g. 70",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Required Skills",
+              "fieldType": "textarea",
+              "placeholder": "e.g. Manual Testing, Selenium, SQL, Bug Reporting",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Job Description",
+              "fieldType": "textarea",
+              "placeholder": "Describe the role, responsibilities, and requirements...",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Scoring Notes",
+              "fieldType": "textarea",
+              "placeholder": "Optional: Give the AI specific instructions on what matters most"
+            }
+          ]
+        },
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "62480a1c-f4fd-4e9b-98d9-58e8a253892c",
+      "name": "HR Job Description Form",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.2,
+      "position": [
+        -144,
+        144
+      ],
+      "webhookId": "0ca28ccd-a20f-4001-80cb-6c7a1415988c"
+    },
+    {
+      "parameters": {
+        "jsCode": "const formData = $input.first().json;\n\nreturn [{\n  json: {\n    job_title: formData['Job Title'] || '',\n    department: formData['Department'] || '',\n    employment_type: formData['Employment Type'] || '',\n    min_experience: formData['Minimum Experience (years)'] || 0,\n    passing_score: formData['Passing Score'] || 70,\n    required_skills: formData['Required Skills'] || '',\n    job_description: formData['Job Description'] || '',\n    scoring_notes: formData['Scoring Notes'] || '',\n    posted_at: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "3009e4cb-60e4-4359-ab42-496c6baf70b0",
+      "name": "Parse Form Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        96,
+        144
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1wRkZu-db1yvNI1XRcuoOVqgc8423PNzrgCWnY4v-JiI",
+          "mode": "list",
+          "cachedResultName": "Jobs",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1wRkZu-db1yvNI1XRcuoOVqgc8423PNzrgCWnY4v-JiI/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "الورقة1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1wRkZu-db1yvNI1XRcuoOVqgc8423PNzrgCWnY4v-JiI/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "job_title": "={{ $json.job_title }}",
+            "department": "={{ $json.department }}",
+            "employment_type": "={{ $json.employment_type }}",
+            "min_experience": "={{ $json.min_experience }}",
+            "passing_score": "={{ $json.passing_score }}",
+            "required_skills": "={{ $json.required_skills }}",
+            "job_description": "={{ $json.job_description }}",
+            "scoring_notes": "={{ $('HR Job Description Form').item.json['Scoring Notes'] }}",
+            "posted_at": "={{ $('HR Job Description Form').item.json.submittedAt }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "job_title",
+              "displayName": "job_title",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "department",
+              "displayName": "department",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "employment_type",
+              "displayName": "employment_type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "min_experience",
+              "displayName": "min_experience",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "passing_score",
+              "displayName": "passing_score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "required_skills",
+              "displayName": "required_skills",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "job_description",
+              "displayName": "job_description",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "scoring_notes",
+              "displayName": "scoring_notes",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "posted_at",
+              "displayName": "posted_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "7ff41bb4-ae31-4f01-8f77-8f4139bb2bbe",
+      "name": "Save Job to Google Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        336,
+        144
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "CzvyMzZ3ynPsdSrX",
+          "name": "Google Sheets OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "app8aPEiE9xbf4D6e",
+          "mode": "list",
+          "cachedResultName": "Graduation Project",
+          "cachedResultUrl": "https://airtable.com/app8aPEiE9xbf4D6e"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tbl5kvMAuZIH3E622",
+          "mode": "list",
+          "cachedResultName": "Applications",
+          "cachedResultUrl": "https://airtable.com/app8aPEiE9xbf4D6e/tbl5kvMAuZIH3E622"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Phone": "={{ $json.phone }}",
+            "Score": "={{ $json.score }}",
+            "Full Name": "={{ $json.name }}",
+            "Email": "={{ $json.email }}",
+            "Job Title": "={{ $json.job_title }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Full Name",
+              "displayName": "Full Name",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Email",
+              "displayName": "Email",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "lobnaeid24@gmail.com",
+                  "value": "lobnaeid24@gmail.com"
+                }
+              ],
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Phone",
+              "displayName": "Phone",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Job Title",
+              "displayName": "Job Title",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Score",
+              "displayName": "Score",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.2,
+      "position": [
+        1952,
+        0
+      ],
+      "id": "1247ee78-66ff-4b00-bc8b-f03f28d18157",
+      "name": "Create a record",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "Gb7ENK4UTG62CJeF",
+          "name": "Airtable Personal Access Token account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Career Application Form": {
+      "main": [
+        [
+          {
+            "node": "Extract Form Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Form Data": {
+      "main": [
+        [
+          {
+            "node": "Extract PDF Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract PDF Text": {
+      "main": [
+        [
+          {
+            "node": "Combine CV Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Combine CV Data": {
+      "main": [
+        [
+          {
+            "node": "Get Job Description",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Job Description": {
+      "main": [
+        [
+          {
+            "node": "Merge CV with Job",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge CV with Job": {
+      "main": [
+        [
+          {
+            "node": "AI CV Analyzer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI CV Analyzer": {
+      "main": [
+        [
+          {
+            "node": "Parse AI Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse AI Response": {
+      "main": [
+        [
+          {
+            "node": "Create a record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI CV Analyzer",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HR Job Description Form": {
+      "main": [
+        [
+          {
+            "node": "Parse Form Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Form Data": {
+      "main": [
+        [
+          {
+            "node": "Save Job to Google Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "bab6e23c-1c27-4571-85c8-162a98906c27",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "d2f0e6653d5091b5a62d3408475b489b43fa8e078753acd1bef0227efb885424"
+  },
+  "nodeGroups": [],
+  "id": "Y3CzovEWI971tzUM",
+  "tags": []
+}
