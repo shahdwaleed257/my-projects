@@ -1,0 +1,974 @@
+{
+  "name": "Final-Workflow-inventory",
+  "nodes": [
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "low-stock-check",
+              "leftValue": "={{ $json.newStock }}",
+              "rightValue": "={{ $node[\"Search records5\"].json.fields.min_quantity }}",
+              "operator": {
+                "type": "number",
+                "operation": "lt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "976785d5-d03f-4cf4-85c9-776439888cd2",
+      "name": "Check Low Stock5",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        880,
+        288
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $node[\"Telegram Trigger (AI)5\"].json.message.chat.id }}",
+        "text": "={{\n$json.status === \"price_reply\"\n? \"🛍️ المنتج: \" + $json.product_name +\n\"\\n💰 السعر: \" + $json.price + \" جنيه\" +\n\"\\n\\nشكراً لتواصلك مع متجرنا، ويسعدنا خدمتك. 😊\"\n\n: \"🛍️ المنتج: \" + $json.product_name +\n\"\\n📦 الكمية المتوفرة: \" + $json.available_qty + \" قطعة\" +\n\"\\n\\nشكراً لتواصلك مع متجرنا، ويسعدنا خدمتك. 😊\"\n}}",
+        "additionalFields": {}
+      },
+      "id": "fbeaa623-edbf-43a8-85eb-2ba90b988bd7",
+      "name": "Reply Inquiry7",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [
+        448,
+        -144
+      ],
+      "webhookId": "d4c9f5be-edd4-4363-b7d5-50da106751a1",
+      "credentials": {
+        "telegramApi": {
+          "id": "R0cX66NN4aVlCx8v",
+          "name": "Telegram account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {}
+      },
+      "id": "83e7b86f-b502-4c6d-b669-d9921fc3ca2f",
+      "name": "Telegram Trigger (AI)5",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1728,
+        112
+      ],
+      "webhookId": "a1cd11c8-321f-42e7-ab29-2fb3f92faf84",
+      "credentials": {
+        "telegramApi": {
+          "id": "R0cX66NN4aVlCx8v",
+          "name": "Telegram account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.message.text }}",
+        "options": {
+          "systemMessage": "أنت مساعد ذكي لمتجر ملابس (Clothing Store Assistant).\n\nقواعد التعامل مع العميل:\n\n1. **طلب شراء**: إذا طلب العميل شراء منتج (مثال: \"عايز هودي باسم شهد\")، رد بـ JSON فقط:\n\n{\n  \"item\": \"اسم المنتج بالإنجليزي\",\n  \"quantity\": الرقم المطلوب,\n  \"customer_name\": \"اسم العميل\",\n  \"phone\": \"رقم الهاتف\",\n  \"address\": \"عنوان العميل بالتفصيل\"\n}\n\n2. **الاستفسار عن التوفر**: إذا سأل العميل عن توفر منتج، رد بـ JSON فقط:\n\n{\n  \"action\": \"check_stock\",\n  \"item\": \"اسم المنتج بالإنجليزي\"\n}\n\n3. **الاستفسار عن السعر**: إذا سأل العميل عن سعر منتج، رد بـ JSON فقط:\n\n{\n  \"action\": \"check_price\",\n  \"item\": \"اسم المنتج بالإنجليزي\"\n}\n\n4. **ترجمة المنتجات**:\n- هودي = Hoodie\n- تيشرت = T-shirt\n- بنطلون = Jeans\n- جاكيت = Jacket\n- فستان = Dress\n- شورت = Shorts\n- جيبة = Skirt\n- معطف = Coat\n\n**المنتجات المتاحة حالياً**:\n(T-shirt, Jeans, Jacket, Dress, Hoodie, Shorts, Skirt, Coat)\n\n**ملاحظات هامة**:\n- الـ item في الـ JSON يجب أن يكون بالإنجليزية ويطابق القائمة (مثلاً: Hoodie).\n- لا تضف أي نص مع الـ JSON.\n- إذا كان الطلب غير واضح، اطلب التوضيح بلباقة.\n\n**ملاحظة**:\nإذا لم يذكر العميل العنوان في حالة طلب الشراء، اطلب منه تزويدك بالعنوان لإتمام الطلب."
+        }
+      },
+      "id": "05c15d39-a20c-4874-ac53-d6ff927ca90b",
+      "name": "AI Agent (Clothing Manager)5",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.6,
+      "position": [
+        -1488,
+        112
+      ],
+      "retryOnFail": true,
+      "alwaysOutputData": true,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "a7a38b2e-112e-40a8-b841-8e1d23421cb6",
+      "name": "Google Gemini Chat Model7",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        -1504,
+        384
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "GSJwNOL8roqxdcpl",
+          "name": "Google Gemini(PaLM) Api account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "123"
+      },
+      "id": "c8dc92ff-ccb2-4dbc-976a-3f6c9b4ca8fe",
+      "name": "Window Buffer Memory5",
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.2,
+      "position": [
+        -1392,
+        384
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "let parsedData = {};\nlet isJson = false;\nlet output = $json.output || \"\"; // جلب الرد أو اعتباره فارغاً\n\n// 1. التحقق إذا كان الرد فارغاً تماماً\nif (output.trim() === \"\") {\n  parsedData = { \n    ai_response: \"عذراً، لم أفهم طلبك، هل يمكنك التوضيح؟\" \n  };\n  isJson = false;\n} else {\n  try {\n    // 2. محاولة استخراج JSON من الرد\n    const jsonMatch = output.match(/\\{[\\s\\S]*\\}/);\n    \n    if (jsonMatch) {\n      parsedData = JSON.parse(jsonMatch[0]);\n      isJson = true;\n      parsedData.ai_response = output;\n    } else {\n      // 3. إذا كان الرد نصاً عادياً وليس JSON\n      parsedData = { ai_response: output };\n      isJson = false;\n    }\n  } catch (e) {\n    // 4. في حالة حدوث أي خطأ تقني في التحليل\n    parsedData = { ai_response: \"عذراً، حدث خطأ بسيط، هل يمكنك إعادة إرسال طلبك؟\" };\n    isJson = false;\n  }\n}\n\nparsedData.isJson = isJson;\nreturn [{ json: parsedData }];\n"
+      },
+      "id": "bae9a665-c2ad-4c6a-88e0-7519362422a9",
+      "name": "Parse AI Output5",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1120,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const stockData = $node[\"Search records5\"].json.fields;\nconst aiData = $node[\"Parse AI Output5\"].json;\n\n// 1. لو المنتج مش موجود أصلاً في قاعدة البيانات\nif (!stockData || Object.keys(stockData).length === 0) {\n  return [{\n    json: {\n      status: \"not_found\",\n      product_name: aiData.item\n    }\n  }];\n}\n\nconst currentStock = parseInt(stockData.quantity) || 0;\n\n// 2. حالة الاستفسار عن السعر (Price Inquiry)\nif (aiData.action === \"check_price\") {\n  return [{\n    json: {\n      status: \"price_reply\",\n      product_name: stockData.product_name,\n      price: stockData.Price\n    }\n  }];\n}\n\n// 3. حالة الاستفسار عن التوفر (Stock Inquiry)\nif (aiData.action === \"check_stock\") {\n  return [{\n    json: {\n      status: \"inquiry_reply\",\n      product_name: stockData.product_name,\n      available_qty: currentStock\n    }\n  }];\n}\n\n// 4. حالة طلب الشراء (Order)\nconst requestedQty = parseInt(aiData.quantity) || 1;\n\nif (currentStock >= requestedQty) {\n  return [{\n    json: {\n      status: \"success\",\n      newStock: currentStock - requestedQty,\n      product_name: stockData.product_name,\n      rowId: $node[\"Search records5\"].json.id,\n      customer: aiData.customer_name,\n      phone: aiData.phone,\n      address: aiData.address\n    }\n  }];\n} else {\n  return [{\n    json: {\n      status: \"out_of_stock\",\n      available_qty: currentStock\n    }\n  }];\n}"
+      },
+      "id": "5db578cd-362a-418c-a853-52069fbdce08",
+      "name": "Check Stock Logic5",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -176,
+        96
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $node[\"Telegram Trigger (AI)5\"].json.message.chat.id }}",
+        "text": "={{ $node[\"Parse AI Output5\"].json.ai_response }}",
+        "additionalFields": {}
+      },
+      "id": "16ffdac0-e867-4aef-941b-e7b12a3d7df0",
+      "name": "Send AI Reply5",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [
+        -512,
+        304
+      ],
+      "webhookId": "3abf1ad8-8986-4a5a-9b8f-15c01e7e0319",
+      "credentials": {
+        "telegramApi": {
+          "id": "R0cX66NN4aVlCx8v",
+          "name": "Telegram account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $node[\"Telegram Trigger (AI)5\"].json[\"message\"][\"chat\"][\"id\"] }}",
+        "text": "=🎉 تم تأكيد طلبك بنجاح!\n\n🛍️ المنتج: {{ $node[\"Check Stock Logic5\"].json.product_name }}\n🔢 رقم الطلب: {{ $execution.id }}\n\n📦 سيتم تجهيز طلبك في أقرب وقت.\n\nشكراً لاختيارك متجرنا، ونتمنى لك تجربة تسوق سعيدة. ❤️",
+        "additionalFields": {}
+      },
+      "id": "24dfca2e-be87-4292-aa92-cf10d53bcb4f",
+      "name": "Confirm Customer5",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [
+        1120,
+        -80
+      ],
+      "webhookId": "1484db58-55df-44be-8dfa-c8dfba513550",
+      "credentials": {
+        "telegramApi": {
+          "id": "R0cX66NN4aVlCx8v",
+          "name": "Telegram account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $node['Telegram Trigger (AI)5'].json.message.chat.id }}",
+        "text": "=نأسف يا فندم 🙏\n\nالكمية المطلوبة غير متوفرة حالياً في المخزون.\n\nيرجى تقليل الكمية أو المحاولة لاحقاً.",
+        "additionalFields": {}
+      },
+      "id": "b870845d-1ae7-4952-963f-11f0f0404b35",
+      "name": "Apology Customer5",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [
+        464,
+        352
+      ],
+      "webhookId": "acd00984-b2ee-440d-a109-a35d9f5a94cb",
+      "credentials": {
+        "telegramApi": {
+          "id": "R0cX66NN4aVlCx8v",
+          "name": "Telegram account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "84cc7578-0d4e-4ea5-82f8-dc6296863d23",
+                    "leftValue": "={{ $json.action === \"check_stock\" }}",
+                    "rightValue": "",
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "true",
+                      "singleValue": true
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Check Stock"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.item !== undefined && $json.action === undefined }}",
+                    "rightValue": "",
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "true",
+                      "singleValue": true
+                    },
+                    "id": "f6c138d0-5041-446c-88cc-c8ec0b6fff44"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Order"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "e8be7406-c372-45fa-af8c-7d7a987b4054",
+                    "leftValue": "={{ $json.action === \"check_price\" }}",
+                    "rightValue": "",
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "true",
+                      "singleValue": true
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Price"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "18d9c718-ca59-4975-a7d7-e464a8b3cf62",
+                    "leftValue": "={{ $json.isJson === false }}",
+                    "rightValue": "",
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "true",
+                      "singleValue": true
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Normal Reply"
+            }
+          ]
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        -880,
+        80
+      ],
+      "id": "3fa67f42-81ca-40d8-829a-2221c669e277",
+      "name": "Switch5"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "inquiry-cond",
+                    "leftValue": "={{ $json.status === 'inquiry_reply' }}",
+                    "rightValue": "",
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "true",
+                      "singleValue": true
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Inquiry"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "0e37fbc5-d8dd-401d-9adc-aa96f59abeef",
+                    "leftValue": "={{ $json.status === 'price_reply' }}",
+                    "rightValue": "=price_reply",
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "true",
+                      "singleValue": true
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Price"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.status === 'success' }}",
+                    "rightValue": "",
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "true",
+                      "singleValue": true
+                    },
+                    "id": "eb853ebe-12af-4595-92bb-ef684f2d5faa"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Success"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "c734d04f-39eb-4e0d-8ff4-ca2ccb55d778",
+                    "leftValue": "={{ $json.status === 'out_of_stock' }}",
+                    "rightValue": "=out_of_stock",
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "true",
+                      "singleValue": true
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Failure"
+            }
+          ]
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        112,
+        64
+      ],
+      "id": "bd3af8a3-35a2-49b9-a7d9-41c2f4e547ac",
+      "name": "Switch14"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "value": "app8aPEiE9xbf4D6e",
+          "mode": "list",
+          "cachedResultName": "Graduation Project",
+          "cachedResultUrl": "https://airtable.com/app8aPEiE9xbf4D6e"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblyJAa3BTNVTdy5D",
+          "mode": "list",
+          "cachedResultName": "stock",
+          "cachedResultUrl": "https://airtable.com/app8aPEiE9xbf4D6e/tblyJAa3BTNVTdy5D"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "id": "={{ $json.rowId }}",
+            "quantity": "={{ $json.newStock }}"
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": true,
+              "removed": false
+            },
+            {
+              "id": "product_name",
+              "displayName": "product_name",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "quantity",
+              "displayName": "quantity",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "min_quantity",
+              "displayName": "min_quantity",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "image",
+              "displayName": "image",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "array",
+              "readOnly": false,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.2,
+      "position": [
+        464,
+        112
+      ],
+      "id": "fea9238f-59e6-4be5-894b-59ac5fa3366c",
+      "name": "Update record5",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "TDsRnbtHyB1Cih9w",
+          "name": "Airtable OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "app8aPEiE9xbf4D6e",
+          "mode": "list",
+          "cachedResultName": "Graduation Project",
+          "cachedResultUrl": "https://airtable.com/app8aPEiE9xbf4D6e"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblyJAa3BTNVTdy5D",
+          "mode": "list",
+          "cachedResultName": "stock",
+          "cachedResultUrl": "https://airtable.com/app8aPEiE9xbf4D6e/tblyJAa3BTNVTdy5D"
+        },
+        "filterByFormula": "={product_name} = '{{ $json.item }}'",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.2,
+      "position": [
+        -512,
+        96
+      ],
+      "id": "ab2b09d7-c026-43c8-9569-f6c03fd81b8a",
+      "name": "Search records5",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "TDsRnbtHyB1Cih9w",
+          "name": "Airtable OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "app8aPEiE9xbf4D6e",
+          "mode": "list",
+          "cachedResultName": "Graduation Project",
+          "cachedResultUrl": "https://airtable.com/app8aPEiE9xbf4D6e"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tbluH8dfCKU8e9H2v",
+          "mode": "list",
+          "cachedResultName": "orders",
+          "cachedResultUrl": "https://airtable.com/app8aPEiE9xbf4D6e/tbluH8dfCKU8e9H2v"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "customer_name": "={{ $node[\"Parse AI Output5\"].json.customer_name }}",
+            "item": "={{ $node[\"Parse AI Output5\"].json.item }}",
+            "status": "Processing",
+            "phone": "={{ $node[\"Parse AI Output5\"].json.phone }}",
+            "order_date": "={{ $now.toISO() }}",
+            "address": "={{ $node[\"Check Stock Logic5\"].json.address }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "customer_name",
+              "displayName": "customer_name",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "phone",
+              "displayName": "phone",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "item",
+              "displayName": "item",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "Delivered",
+                  "value": "Delivered"
+                },
+                {
+                  "name": "Processing",
+                  "value": "Processing"
+                },
+                {
+                  "name": "Shipped",
+                  "value": "Shipped"
+                },
+                {
+                  "name": "Cancelled",
+                  "value": "Cancelled"
+                }
+              ],
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "order_date",
+              "displayName": "order_date",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "address",
+              "displayName": "address",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.2,
+      "position": [
+        864,
+        -80
+      ],
+      "id": "55287040-c4b0-4f99-8d94-ed233aa007ab",
+      "name": "Create a record5",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "TDsRnbtHyB1Cih9w",
+          "name": "Airtable OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fromEmail": "shymaaradwan8@gmail.com",
+        "toEmail": "shahdwa33@gmail.com",
+        "subject": "=={{ $node[\"Check Stock Logic5\"].json.newStock < $node[\"Search records5\"].json.fields.min_quantity ? '⚠️ Inventory Alert - Low Stock' : '🛍️ New Customer Order #' + $execution.id }}",
+        "html": "=<h3>New Order Details</h3>\n\n<table border=\"1\" style=\"border-collapse: collapse; width: 100%;\">\n  <tr style=\"background-color: #f2f2f2;\">\n    <th style=\"padding: 8px; text-align: left;\">Field</th>\n    <th style=\"padding: 8px; text-align: left;\">Value</th>\n  </tr>\n\n  <tr>\n    <td style=\"padding: 8px;\">Order ID</td>\n    <td style=\"padding: 8px;\">{{ $execution.id }}</td>\n  </tr>\n\n  <tr>\n    <td style=\"padding: 8px;\">Customer Name</td>\n    <td style=\"padding: 8px;\">{{ $node[\"Check Stock Logic5\"].json.customer }}</td>\n  </tr>\n\n  <tr>\n    <td style=\"padding: 8px;\">Phone Number</td>\n    <td style=\"padding: 8px;\">{{ $node[\"Check Stock Logic5\"].json.phone }}</td>\n  </tr>\n\n  <tr>\n    <td style=\"padding: 8px;\">Product</td>\n    <td style=\"padding: 8px;\">{{ $node[\"Check Stock Logic5\"].json.product_name }}</td>\n  </tr>\n\n  <tr>\n    <td style=\"padding: 8px;\">Remaining Stock</td>\n    <td style=\"padding: 8px;\">{{ $node[\"Check Stock Logic5\"].json.newStock }}</td>\n  </tr>\n\n  <tr>\n    <td style=\"padding: 8px;\">Shipping Address</td>\n    <td style=\"padding: 8px;\">{{ $node[\"Check Stock Logic5\"].json.address }}</td>\n  </tr>\n</table>\n\n{{ $node[\"Check Stock Logic5\"].json.newStock < $node[\"Search records5\"].json.fields.min_quantity\n? '<p style=\"color: red; font-weight: bold;\">⚠️ Low Stock Alert: The remaining stock has reached the minimum threshold (' + $node[\"Search records5\"].json.fields.min_quantity + '). Please restock this product as soon as possible.</p>'\n: '<p style=\"color: green;\">✅ Inventory level is healthy.</p>' }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1136,
+        112
+      ],
+      "id": "3d966fd7-7f66-4ad9-9365-2cf6a57d5f12",
+      "name": "Send an Email5",
+      "webhookId": "e989baf7-e912-4f53-b702-db09713988c8",
+      "credentials": {
+        "smtp": {
+          "id": "0O22fp4UxK1YK0TL",
+          "name": "SMTP account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Check Low Stock5": {
+      "main": [
+        [
+          {
+            "node": "Send an Email5",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram Trigger (AI)5": {
+      "main": [
+        [
+          {
+            "node": "AI Agent (Clothing Manager)5",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent (Clothing Manager)5": {
+      "main": [
+        [
+          {
+            "node": "Parse AI Output5",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Parse AI Output5",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model7": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent (Clothing Manager)5",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Window Buffer Memory5": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent (Clothing Manager)5",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse AI Output5": {
+      "main": [
+        [
+          {
+            "node": "Switch5",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Stock Logic5": {
+      "main": [
+        [
+          {
+            "node": "Switch14",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch5": {
+      "main": [
+        [
+          {
+            "node": "Search records5",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Search records5",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Search records5",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send AI Reply5",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch14": {
+      "main": [
+        [
+          {
+            "node": "Reply Inquiry7",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reply Inquiry7",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Update record5",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Apology Customer5",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update record5": {
+      "main": [
+        [
+          {
+            "node": "Create a record5",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Check Low Stock5",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Send an Email5",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search records5": {
+      "main": [
+        [
+          {
+            "node": "Check Stock Logic5",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create a record5": {
+      "main": [
+        [
+          {
+            "node": "Confirm Customer5",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "staticData": null,
+  "pinData": {},
+  "triggerCount": 1,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}

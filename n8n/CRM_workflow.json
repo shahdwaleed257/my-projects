@@ -1,0 +1,876 @@
+{
+  "name": "CRM workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -896,
+        272
+      ],
+      "id": "783b5d1f-c659-4a99-b454-54e2b2d43a0d",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "url": "=https://jsonplaceholder.typicode.com/users",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {}
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -544,
+        112
+      ],
+      "id": "e3955d25-893a-41e2-b91c-3c9ae355f61b",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are a data transformation engine. You will receive a JSON ARRAY as input.\nTransform EACH object into a Zoho CRM Lead–ready object and return ALL results as ONE JSON ARRAY.\nTRANSFORMATION RULES:\n- id: original id\n- full_name: original name \n- first_name: first word of name\n- last_name: last word of name \n- email: original email\n- phone: original phone \n- city: address.city\n- Company: company.name (STRING ONLY) \n- website: original website \n- lead_source: \"AI Automation\" INPUT DATA: {{ JSON.stringify($input.all().map(i => i.json)) }} CRITICAL RULES: \n- company MUST be a STRING, not an object.\n- Process ALL items. \n- Do NOT skip any item.\n- Return ONLY a valid JSON ARRAY.",
+        "hasOutputParser": true,
+        "messages": {
+          "messageValues": [
+            {
+              "message": "The data is provided inside the \"text\" field. Extract all items and convert them into a unified JSON array containing the fields listed above. Do not include any extra text, explanations, or repetitions."
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.7,
+      "position": [
+        0,
+        0
+      ],
+      "id": "41f1f91f-78ba-40cd-beed-897e74ef81a8",
+      "name": "Basic LLM Chain2",
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "resource": "lead",
+        "Company": "={{ $json.Company }}",
+        "lastName": "={{ $json.Last_Name }}",
+        "additionalFields": {
+          "Email": "={{ $json.Email }}",
+          "First_Name": "={{ $json.First_Name }}",
+          "Lead_Source": "={{ $json.Lead_Source }}",
+          "Phone": "={{ $json.Phone }}",
+          "Website": "={{ $json.Website }}"
+        }
+      },
+      "type": "n8n-nodes-base.zohoCrm",
+      "typeVersion": 1,
+      "position": [
+        672,
+        160
+      ],
+      "id": "e0db1b37-9c08-4e49-9f15-3f18ab1292a1",
+      "name": "Create a lead",
+      "executeOnce": false,
+      "credentials": {
+        "zohoOAuth2Api": {
+          "id": "ocrgmMnapFCSXLjG",
+          "name": "Zoho OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Assume input items are coming from previous node\n// Each item has a customer object in json\nconst inputItems = items; // n8n provides \"items\" automatically\n\n// Extract customer data from all items\nconst customersArray = inputItems.map(item => item.json);\n\n// Combine into a single JSON object\nconst output = {\n  customers: customersArray\n};\n\n// Return as a single item\nreturn [{ json: output }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        288
+      ],
+      "id": "20574260-9aa4-4ded-8fa5-524ca452c86b",
+      "name": "Code in JavaScript1"
+    },
+    {
+      "parameters": {
+        "sendTo": "shahdwa33@gmail.com",
+        "subject": "Workflow Ran Done",
+        "emailType": "text",
+        "message": "Hi Shahd, the n8nnworkflow has successfully completed its CRM automation",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1264,
+        320
+      ],
+      "id": "3f944c77-26f1-473d-93f1-7339e303a35c",
+      "name": "Send a message",
+      "webhookId": "bc49b3ad-fa64-4bcb-90b7-ba806699fee2",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "WFq9UmJuEDDbYhz4",
+          "name": "Gmail OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "let text = $input.item.json.text;\n\n// إزالة markdown\ntext = text\n  .replace(/```json/gi, \"\")\n  .replace(/```/g, \"\")\n  .trim();\n\n// استخراج المصفوفة فقط\nconst start = text.indexOf(\"[\");\nconst end = text.lastIndexOf(\"]\");\n\nif (start === -1 || end === -1) {\n  throw new Error(\"No JSON array found\");\n}\n\ntext = text.substring(start, end + 1);\n\nconst leads = JSON.parse(text);\n\nreturn leads.map(lead => ({\n  json: {\n    ID: lead.id,\n    First_Name: lead.first_name,\n    Last_Name: lead.last_name || lead.full_name,\n    Email: lead.email,\n    Phone: lead.phone,\n    City: lead.city,\n    Company: lead.Company,\n    Website: lead.website,\n    Lead_Source: lead.lead_source\n  }\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        368,
+        384
+      ],
+      "id": "327c1c64-198e-48c7-a413-779f055a66aa",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.text }}",
+        "messages": {
+          "messageValues": [
+            {
+              "message": "You are a data extraction assistant. Your task is to extract customer information from the provided text and return ONLY a valid JSON array. Each customer should be an object with fields: ID, Name, Username, Email, Street, Suite, City, Zipcode. Do not include any explanations, markdown formatting, or extra text. Return only the JSON array starting with [ and ending with ]."
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.7,
+      "position": [
+        256,
+        832
+      ],
+      "id": "e9f0fb89-373c-4e24-8129-01bf49d02169",
+      "name": "Basic LLM Chain1"
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1.1,
+      "position": [
+        -64,
+        784
+      ],
+      "id": "a881d503-d14d-4380-a091-4163b302b481",
+      "name": "Extract from File"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -832,
+        784
+      ],
+      "id": "40180b05-f84d-4715-9358-029f97793e9d",
+      "name": "Schedule Trigger1"
+    },
+    {
+      "parameters": {
+        "sendTo": "shahdwa33@gmail.com",
+        "subject": "Workflow Ran Done",
+        "emailType": "text",
+        "message": "Hi Shahd, the n8nnworkflow has successfully completed its CRM automation",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1312,
+        832
+      ],
+      "id": "815382de-c675-4beb-aba8-72a72852ec7f",
+      "name": "Send a message1",
+      "webhookId": "bc49b3ad-fa64-4bcb-90b7-ba806699fee2",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "WFq9UmJuEDDbYhz4",
+          "name": "Gmail OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "value": "1dhO15uS5KX6-gKPMV-Y2jvzP7BWd617g",
+          "mode": "list",
+          "cachedResultName": "custumer.pdf",
+          "cachedResultUrl": "https://drive.google.com/file/d/1dhO15uS5KX6-gKPMV-Y2jvzP7BWd617g/view?usp=drivesdk"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        -480,
+        768
+      ],
+      "id": "15c35691-cfb7-4eb2-8e5d-3d581956258c",
+      "name": "Download file",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "2PGhilRQphnan1KO",
+          "name": "Google Drive OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "lead",
+        "Company": "={{ $json.Suite }}",
+        "lastName": "={{ $json.Name }}",
+        "additionalFields": {
+          "Email": "={{ $json.Email }}"
+        }
+      },
+      "type": "n8n-nodes-base.zohoCrm",
+      "typeVersion": 1,
+      "position": [
+        880,
+        688
+      ],
+      "id": "7708627c-7ae7-4bcb-b002-12db512b2f32",
+      "name": "Create a lead1",
+      "credentials": {
+        "zohoOAuth2Api": {
+          "id": "ocrgmMnapFCSXLjG",
+          "name": "Zoho OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const inputData = $input.all();\nconst parsedItems = [];\n\nfor (const item of inputData) {\n  let textData = item.json.text;\n  \n  if (textData) {\n    try {\n      // Remove markdown code blocks\n      textData = textData.replace(/```[\\s\\S]*?```/g, (match) => {\n        return match.replace(/```json|```/g, '');\n      });\n\n      // Extract JSON part\n      const jsonMatch = textData.match(/[\\[\\{][\\s\\S]*[\\]\\}]/);\n      \n      if (jsonMatch) {\n        textData = jsonMatch[0];\n      }\n\n      textData = textData.trim();\n\n      const parsed = JSON.parse(textData);\n      \n      if (Array.isArray(parsed)) {\n        for (const entry of parsed) {\n          parsedItems.push({ json: entry });\n        }\n      } else if (typeof parsed === 'object' && parsed !== null) {\n        parsedItems.push({ json: parsed });\n      }\n\n    } catch (error) {\n      console.log('Failed to parse JSON:', error.message);\n    }\n  }\n}\n\n// fallback\nif (parsedItems.length === 0) {\n  return [{ json: { error: \"No data parsed\" } }];\n}\n\nreturn parsedItems;"
+      },
+      "id": "0c4b2903-85da-4c57-99d4-5259bb0c49ed",
+      "name": "Parse AI Output",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        624,
+        816
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Assume input items are coming from previous node\n// Each item has a customer object in json\nconst inputItems = items; // n8n provides \"items\" automatically\n\n// Extract customer data from all items\nconst customersArray = inputItems.map(item => item.json);\n\n// Combine into a single JSON object\nconst output = {\n  customers: customersArray\n};\n\n// Return as a single item\nreturn [{ json: output }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1088,
+        832
+      ],
+      "id": "f94bc57e-9447-44f8-a6d6-fa8ce2e96cf6",
+      "name": "Code in JavaScript2"
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-2.5-flash",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        272
+      ],
+      "id": "ab3f6fe6-8048-4a0b-b86d-63dc30527296",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "1xqs55aLDayrvL0R",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-2.5-flash",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        256,
+        1024
+      ],
+      "id": "eda8793f-a9d8-46ac-bda4-755f25eb4c1e",
+      "name": "Google Gemini Chat Model1",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "1xqs55aLDayrvL0R",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "base": {
+          "__rl": true,
+          "value": "app8aPEiE9xbf4D6e",
+          "mode": "list",
+          "cachedResultName": "Graduation Project",
+          "cachedResultUrl": "https://airtable.com/app8aPEiE9xbf4D6e"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblH8ryGXeRP3UKIi",
+          "mode": "list",
+          "cachedResultName": "Crmweb",
+          "cachedResultUrl": "https://airtable.com/app8aPEiE9xbf4D6e/tblH8ryGXeRP3UKIi"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": true,
+              "removed": false
+            },
+            {
+              "id": "First_Name",
+              "displayName": "First_Name",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Last_Name",
+              "displayName": "Last_Name",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "ID",
+              "displayName": "ID",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Email",
+              "displayName": "Email",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Phone",
+              "displayName": "Phone",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Website",
+              "displayName": "Website",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "City",
+              "displayName": "City",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Company",
+              "displayName": "Company",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Lead_Source",
+              "displayName": "Lead_Source",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "CRM Contacts",
+              "displayName": "CRM Contacts",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "City Relation",
+              "displayName": "City Relation",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "array",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "typecast": true
+        }
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.2,
+      "position": [
+        688,
+        480
+      ],
+      "id": "8d06dec6-38da-494f-b41d-e946c7d9a024",
+      "name": "Create or update a record",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "TDsRnbtHyB1Cih9w",
+          "name": "Airtable OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "base": {
+          "__rl": true,
+          "value": "app8aPEiE9xbf4D6e",
+          "mode": "list",
+          "cachedResultName": "Graduation Project",
+          "cachedResultUrl": "https://airtable.com/app8aPEiE9xbf4D6e"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblP7Ssw0utIV2CuM",
+          "mode": "list",
+          "cachedResultName": "Crmpdf",
+          "cachedResultUrl": "https://airtable.com/app8aPEiE9xbf4D6e/tblP7Ssw0utIV2CuM"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": true,
+              "removed": false
+            },
+            {
+              "id": "Name",
+              "displayName": "Name",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "ID",
+              "displayName": "ID",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Username",
+              "displayName": "Username",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Email",
+              "displayName": "Email",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Street",
+              "displayName": "Street",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Suite",
+              "displayName": "Suite",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "City",
+              "displayName": "City",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Zipcode",
+              "displayName": "Zipcode",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "CRM Contacts",
+              "displayName": "CRM Contacts",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Crmweb",
+              "displayName": "Crmweb",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "array",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "typecast": true
+        }
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.2,
+      "position": [
+        896,
+        1024
+      ],
+      "id": "b71e785f-ee89-413c-bdfb-b53c558a699c",
+      "name": "Create or update a record1",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "TDsRnbtHyB1Cih9w",
+          "name": "Airtable OAuth2 API"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Basic LLM Chain2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic LLM Chain2": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create a lead": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript1": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Create a lead",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Create or update a record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic LLM Chain1": {
+      "main": [
+        [
+          {
+            "node": "Parse AI Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract from File": {
+      "main": [
+        [
+          {
+            "node": "Basic LLM Chain1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger1": {
+      "main": [
+        [
+          {
+            "node": "Download file",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download file": {
+      "main": [
+        [
+          {
+            "node": "Extract from File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create a lead1": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse AI Output": {
+      "main": [
+        [
+          {
+            "node": "Create a lead1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Create or update a record1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript2": {
+      "main": [
+        [
+          {
+            "node": "Send a message1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Basic LLM Chain2",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Basic LLM Chain1",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "staticData": null,
+  "pinData": {},
+  "triggerCount": 0,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}

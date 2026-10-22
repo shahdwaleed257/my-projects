@@ -1,0 +1,781 @@
+{
+  "name": "Final Monitor Social Media",
+  "nodes": [
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are a social media analyst.\n\nIMPORTANT:\n1. First, use the available HTTP tools to fetch the latest data from Facebook, Instagram, and YouTube.\n2. Wait until the tools return their responses.\n3. Extract the platform name, author, and content from each response.\n4. Analyze every post/comment individually.\n5. Return ONLY valid JSON.\n6. Do NOT ask the user for Platform, Content, or Author.\n7. Do NOT return markdown or explanations.\n\nReturn this JSON format for every item:\n\n[\n  {\n    \"platform\": \"\",\n    \"author\": \"\",\n    \"content\": \"\",\n    \"sentiment\": \"Positive | Negative | Neutral\",\n    \"topic\": \"\",\n    \"trend_score\": 1,\n    \"brand_mentions\": [],\n    \"summary\": \"\",\n    \"urgency\": \"High | Medium | Low\",\n    \"recommended_action\": \"\"\n  }\n]",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.2,
+      "position": [
+        80,
+        1200
+      ],
+      "id": "f2f4084d-c3ff-47fa-8dbe-963a58fb5da6",
+      "name": "AI Summary Agent",
+      "notesInFlow": true,
+      "notes": "Double-click to open"
+    },
+    {
+      "parameters": {
+        "sendTo": "shahdwa33@gmail.com",
+        "subject": "=Social Media Report - {{ $json.analysis.urgency }} Priority - {{ $now.format('yyyy-MM-dd') }}",
+        "emailType": "text",
+        "message": "=Social Media Monitoring Summary 📊\n\nPlatform: {{ $json.analysis.platform }}\nAuthor: {{ $json.analysis.author }}\nContent: {{ $json.analysis.content }}\n\nTopic: {{ $json.analysis.topic }}\n\nOverall Sentiment: {{ $json.analysis.sentiment }}\nTrend Score: {{ $json.analysis.trend_score }}/10\nUrgency Level: {{ $json.analysis.urgency }}\n\nBrand Mentioned: {{ $json.analysis.brand_mentions }}\n\nSummary:\n{{ $json.analysis.summary }}\n\nRecommended Action:\n{{ $json.analysis.recommended_action }}\n\n---\nThis report was generated automatically",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1984,
+        1520
+      ],
+      "id": "689d7f96-a9cd-4a90-bb88-11dcc04e3c27",
+      "name": "Send summary with Gmail",
+      "webhookId": "fde5bd3e-1a90-4d04-ac60-7c4e4fd4afb2",
+      "notesInFlow": true,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "WFq9UmJuEDDbYhz4",
+          "name": "Gmail OAuth2 API"
+        }
+      },
+      "notes": "Double-click to open"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "check-negative",
+              "leftValue": "={{ $json.analysis.sentiment }}",
+              "rightValue": "Negative",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1264,
+        1200
+      ],
+      "id": "5ac92cdf-0544-41ff-81f8-b462c7a56c06",
+      "name": "Is Negative?"
+    },
+    {
+      "parameters": {
+        "chatId": "5001876172",
+        "text": "=📊 *Social Media Monitor Report*\n\n📱 *Platform:* {{ $json.analysis.platform }}\n👤 *Author:* {{ $json.analysis.author }}\n\n💬 *Content:* {{ $json.analysis.content }}\n\n😊 *Sentiment:* {{ $json.analysis.sentiment }}\n📈 *Trend Score:* {{ $json.analysis.trend_score }}/10\n🔥 *Urgency:* {{ $json.analysis.urgency }}\n\n📝 *Summary:* {{ $json.analysis.summary }}\n\n💡 *Action:* {{ $json.analysis.recommended_action }}\n\n📅 *Date:* {{ $now.format('yyyy-MM-dd HH:mm:ss') }}",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1856,
+        1168
+      ],
+      "id": "cbc7d0ea-d98e-401e-a21e-3c405fb3abbf",
+      "name": "Telegram Alert",
+      "webhookId": "61ab9545-b520-44c6-98ff-01678cc5bde7",
+      "credentials": {
+        "telegramApi": {
+          "id": "QEfqmkg0JLDA3Z5T",
+          "name": "Telegram account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://graph.facebook.com/v19.0/1001072433087557/feed?fields=id,message,created_time",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "fields",
+              "value": "id,message,created_time,from"
+            },
+            {
+              "name": "access_token",
+              "value": "EAAc2oEY2R5MBRqZCOUeYJ85TMYmEe5R6An0OMjk269K0yFZCXbrJMC2o6JRiFcQQoOKazIRR9her8dcJ7TPk6XU42MXKQIHdhqM5WJNw1gjxOHLxOiL04OBkzH6LWhzVGfHJYvBhLN2ts8b8oZArTaLyNknEfvRloarSbZBrmfsNS5CI9fjtW9BZAIDY5tFV6Tpum"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        240,
+        3760
+      ],
+      "id": "94be80f5-d505-405a-8c74-5aa82ba2a9cb",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "url": "https://www.googleapis.com/youtube/v3/commentThreads?part=snippet&videoId=T05duJXj0q8&maxResults=10&key=AIzaSyBVYJNzGfjXBsKiJzVfnNxCRxVhdosY4sQ",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        512,
+        3760
+      ],
+      "id": "5f44a79d-53b5-419b-8cf1-e916602b9a8b",
+      "name": "HTTP Request3"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "b3a0accc-8583-4a9d-80a2-44bcf1fba01c",
+              "name": "platform",
+              "value": "={{ $json.message !== undefined ? \"Facebook\" : $json.text !== undefined ? \"Instagram\" : \"YouTube\" }}",
+              "type": "string"
+            },
+            {
+              "id": "fbade4ad-ec0d-4976-9d6a-378bc9f4f33f",
+              "name": "content",
+              "value": "={{ $json.message ?? $json.text ?? $json.snippet?.topLevelComment?.snippet?.textDisplay }}",
+              "type": "string"
+            },
+            {
+              "id": "d03e9d2b-b7e8-46c3-a9b4-52fa4d8f0fe1",
+              "name": "author",
+              "value": "={{ $json.from?.name ?? $json.username ?? $json.snippet?.topLevelComment?.snippet?.authorDisplayName }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        656,
+        3744
+      ],
+      "id": "975cd09c-66ad-4136-be03-29f24f6ee0d2",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "url": "https://graph.facebook.com/v19.0/17841479596916927/media",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "fields",
+              "value": "id,caption,timestamp,comments{text,username,timestamp}"
+            },
+            {
+              "name": "access_token",
+              "value": "EAAc2oEY2R5MBRqZCOUeYJ85TMYmEe5R6An0OMjk269K0yFZCXbrJMC2o6JRiFcQQoOKazIRR9her8dcJ7TPk6XU42MXKQIHdhqM5WJNw1gjxOHLxOiL04OBkzH6LWhzVGfHJYvBhLN2ts8b8oZArTaLyNknEfvRloarSbZBrmfsNS5CI9fjtW9BZAIDY5tFV6Tpum"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        384,
+        3760
+      ],
+      "id": "1350b732-e7ef-400f-9ad6-ab9d8f928435",
+      "name": "HTTP Request4"
+    },
+    {
+      "parameters": {
+        "path": "dd6a68e5-98b6-4c8d-a8bf-eae8729cbbdc"
+      },
+      "type": "@n8n/n8n-nodes-langchain.mcpTrigger",
+      "typeVersion": 2,
+      "position": [
+        -1552,
+        1296
+      ],
+      "id": "f6abdd8d-b55e-4de0-906c-3d7d6ddb6461",
+      "name": "MCP Server Trigger",
+      "webhookId": "dd6a68e5-98b6-4c8d-a8bf-eae8729cbbdc"
+    },
+    {
+      "parameters": {
+        "toolDescription": "Get YouTube comments to monitor sentiment",
+        "url": "https://www.googleapis.com/youtube/v3/commentThreads?part=snippet&videoId=T05duJXj0q8&maxResults=10&key=AIzaSyBVYJNzGfjXBsKiJzVfnNxCRxVhdosY4sQ",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.4,
+      "position": [
+        -1424,
+        1808
+      ],
+      "id": "b93a4a83-1474-4d32-9f31-f9ad6d6f2541",
+      "name": "HTTP Request6"
+    },
+    {
+      "parameters": {
+        "toolDescription": "Get Facebook posts and comments to monitor sentiment",
+        "url": "https://graph.facebook.com/v19.0/17841479596916927/media",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "fields",
+              "value": "id,caption,timestamp,comments{text,username,timestamp}"
+            },
+            {
+              "name": "access_token",
+              "value": "EAAc2oEY2R5MBRqZCOUeYJ85TMYmEe5R6An0OMjk269K0yFZCXbrJMC2o6JRiFcQQoOKazIRR9her8dcJ7TPk6XU42MXKQIHdhqM5WJNw1gjxOHLxOiL04OBkzH6LWhzVGfHJYvBhLN2ts8b8oZArTaLyNknEfvRloarSbZBrmfsNS5CI9fjtW9BZAIDY5tFV6Tpum"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.4,
+      "position": [
+        -1056,
+        1808
+      ],
+      "id": "632825eb-86dd-49c6-856e-b913c1c0f68a",
+      "name": "HTTP Request7"
+    },
+    {
+      "parameters": {
+        "url": "https://graph.facebook.com/v19.0/1001072433087557/feed?fields=id,message,created_time",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "fields",
+              "value": "id,message,created_time,from"
+            },
+            {
+              "name": "access_token",
+              "value": "EAAc2oEY2R5MBRqZCOUeYJ85TMYmEe5R6An0OMjk269K0yFZCXbrJMC2o6JRiFcQQoOKazIRR9her8dcJ7TPk6XU42MXKQIHdhqM5WJNw1gjxOHLxOiL04OBkzH6LWhzVGfHJYvBhLN2ts8b8oZArTaLyNknEfvRloarSbZBrmfsNS5CI9fjtW9BZAIDY5tFV6Tpum"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.4,
+      "position": [
+        -1760,
+        1808
+      ],
+      "id": "e0e58d17-6e49-488d-84ca-c760f0dcb02e",
+      "name": "HTTP Request8"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -432,
+        1216
+      ],
+      "id": "0ae3a895-9fa8-4b8f-a496-019a4303461b",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "toolDescription": "Fetches recent YouTube comments mentioning Apple. Use this when the user asks about YouTube sentiment, opinions, or comments.",
+        "url": "https://www.googleapis.com/youtube/v3/commentThreads?part=snippet&videoId=T05duJXj0q8&maxResults=10&key=AIzaSyBVYJNzGfjXBsKiJzVfnNxCRxVhdosY4sQ",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.4,
+      "position": [
+        720,
+        2000
+      ],
+      "id": "402fc01b-7023-4025-85c5-50413b9cc8a0",
+      "name": "HTTP Request9"
+    },
+    {
+      "parameters": {
+        "toolDescription": "Fetches recent Instagram posts mentioning Apple. Use this when the user asks about Instagram sentiment, opinions, or posts.",
+        "url": "https://graph.facebook.com/v19.0/1001072433087557/feed?fields=id,message,created_time",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "fields",
+              "value": "id,message,created_time,from"
+            },
+            {
+              "name": "access_token",
+              "value": "EAAc2oEY2R5MBRqZCOUeYJ85TMYmEe5R6An0OMjk269K0yFZCXbrJMC2o6JRiFcQQoOKazIRR9her8dcJ7TPk6XU42MXKQIHdhqM5WJNw1gjxOHLxOiL04OBkzH6LWhzVGfHJYvBhLN2ts8b8oZArTaLyNknEfvRloarSbZBrmfsNS5CI9fjtW9BZAIDY5tFV6Tpum"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.4,
+      "position": [
+        512,
+        2000
+      ],
+      "id": "c7c49900-bcaa-470f-aa95-dd5b1aed43c8",
+      "name": "HTTP Request10"
+    },
+    {
+      "parameters": {
+        "toolDescription": "Fetches recent Facebook posts and comments to monitor sentiment. Use this when the user asks about Facebook",
+        "url": "https://graph.facebook.com/v19.0/1001072433087557/feed",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "fields",
+              "value": "fields=id,message,created_time,from,comments{message,from,created_time}"
+            },
+            {
+              "name": "access_token",
+              "value": "EAAc2oEY2R5MBRqZCOUeYJ85TMYmEe5R6An0OMjk269K0yFZCXbrJMC2o6JRiFcQQoOKazIRR9her8dcJ7TPk6XU42MXKQIHdhqM5WJNw1gjxOHLxOiL04OBkzH6LWhzVGfHJYvBhLN2ts8b8oZArTaLyNknEfvRloarSbZBrmfsNS5CI9fjtW9BZAIDY5tFV6Tpum"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.4,
+      "position": [
+        304,
+        2000
+      ],
+      "id": "151228ed-b43f-4776-9b77-d69cf2f82a67",
+      "name": "HTTP Request11"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "f1",
+              "name": "Platform",
+              "value": "={{ $json.analysis.platform }}",
+              "type": "string"
+            },
+            {
+              "id": "f2",
+              "name": "Sentiment",
+              "value": "={{ $json.analysis.sentiment }}",
+              "type": "string"
+            },
+            {
+              "id": "f3",
+              "name": "Urgency",
+              "value": "={{ $json.analysis.urgency }}",
+              "type": "string"
+            },
+            {
+              "id": "f4",
+              "name": "Trend Score",
+              "value": "={{ $json.analysis.trend_score }}",
+              "type": "string"
+            },
+            {
+              "id": "f5",
+              "name": "Summary",
+              "value": "={{ $json.analysis.summary }}",
+              "type": "string"
+            },
+            {
+              "id": "f6",
+              "name": "Recommended Action",
+              "value": "={{ $json.analysis.recommended_action }}",
+              "type": "string"
+            },
+            {
+              "id": "f7",
+              "name": "Brand Mentions",
+              "value": "={{ $json.analysis.brand_mentions }}",
+              "type": "string"
+            },
+            {
+              "id": "f8",
+              "name": "Date",
+              "value": "={{ $now.format('yyyy-MM-dd') }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        944,
+        1712
+      ],
+      "id": "1bd963e3-0545-48fb-9b46-f55528be7499",
+      "name": "Flatten for Airtable"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = [];\n\nfor (const item of $input.all()) {\n  let raw = item.json.output;\n\n  if (typeof raw === 'string') {\n    raw = raw.replace(/```json|```/g, '').trim();\n  }\n\n  let parsed;\n  try {\n    // المحاولة العادية الأولى\n    parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;\n  } catch (e) {\n    // لو فشلت: يبقى عندنا كذا JSON object ملزوقين من غير array\n    // نحاول نستخرجهم بالـ regex\n    const matches = raw.match(/\\{[\\s\\S]*?\\}(?=\\s*\\{|\\s*$)/g);\n    if (matches) {\n      parsed = matches.map(m => JSON.parse(m));\n    } else {\n      throw new Error('Could not parse output: ' + raw.substring(0, 200));\n    }\n  }\n\n  const arr = Array.isArray(parsed) ? parsed : [parsed];\n  for (const analysis of arr) {\n    items.push({ json: { analysis } });\n  }\n}\n\nreturn items;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        1200
+      ],
+      "id": "e6673575-ace2-4085-a668-63d72e9aa237",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3.1-flash-lite",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        96,
+        1536
+      ],
+      "id": "550023d1-237a-4517-ad9c-53ed56c772f0",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "GSJwNOL8roqxdcpl",
+          "name": "Google Gemini(PaLM) Api account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "app8aPEiE9xbf4D6e",
+          "mode": "list",
+          "cachedResultName": "Graduation Project",
+          "cachedResultUrl": "https://airtable.com/app8aPEiE9xbf4D6e"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblvy2m6Ul8YFM6vK",
+          "mode": "list",
+          "cachedResultName": "Monitor Social Media",
+          "cachedResultUrl": "https://airtable.com/app8aPEiE9xbf4D6e/tblvy2m6Ul8YFM6vK"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Platform": "={{ $json.Platform }}",
+            "Sentiment": "={{ $json.Sentiment }}",
+            "Urgency": "={{ $json.Urgency }}",
+            "Trend Score": "={{ $json['Trend Score'] }}",
+            "Summary": "={{ $json.Summary }}",
+            "Recommended Action": "={{ $('Code in JavaScript').item.json.analysis.recommended_action }}",
+            "Date": "={{ $json.Date }}",
+            "Brand Mentions": "={{ $json['Brand Mentions'] }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Platform",
+              "displayName": "Platform",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Sentiment",
+              "displayName": "Sentiment",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Urgency",
+              "displayName": "Urgency",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Trend Score",
+              "displayName": "Trend Score",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Summary",
+              "displayName": "Summary",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Date",
+              "displayName": "Date",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Recommended Action",
+              "displayName": "Recommended Action",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Brand Mentions",
+              "displayName": "Brand Mentions",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "typecast": true
+        }
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.2,
+      "position": [
+        1344,
+        1712
+      ],
+      "id": "060564f2-03e1-4298-85b2-2944157b6009",
+      "name": "Create a record",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "1VkmWX2JLN2EpGYC",
+          "name": "Airtable OAuth2 API"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "AI Summary Agent": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Negative?": {
+      "main": [
+        [
+          {
+            "node": "Telegram Alert",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Send summary with Gmail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request6": {
+      "ai_tool": [
+        [
+          {
+            "node": "MCP Server Trigger",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request7": {
+      "ai_tool": [
+        [
+          {
+            "node": "MCP Server Trigger",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request8": {
+      "ai_tool": [
+        [
+          {
+            "node": "MCP Server Trigger",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "AI Summary Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request9": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Summary Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request10": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Summary Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request11": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Summary Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Flatten for Airtable": {
+      "main": [
+        [
+          {
+            "node": "Create a record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Is Negative?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Flatten for Airtable",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Summary Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "staticData": {
+    "node:Schedule Trigger": {
+      "recurrenceRules": []
+    }
+  },
+  "pinData": {},
+  "triggerCount": 2,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}
