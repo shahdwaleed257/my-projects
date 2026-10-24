@@ -1,0 +1,2744 @@
+{
+  "name": "Hospital - Daily Slot Generator",
+  "nodes": [
+    {
+      "parameters": {
+        "jsCode": "const j = $input.first().json;\n// WhatsApp Trigger output (also tolerates the raw Meta payload shape)\nconst v = j.messages ? j : (j.value || j.body?.entry?.[0]?.changes?.[0]?.value);\nconst m = v?.messages?.[0];\nif (!m) return [];   // delivery/read statuses etc. are ignored\nlet text = '';\nif (m.type === 'text') text = m.text?.body || '';\nelse if (m.type === 'interactive') text = m.interactive?.button_reply?.title || m.interactive?.list_reply?.title || '';\nif (!text) return [];\nreturn [{ json: { from: String(m.from), name: v.contacts?.[0]?.profile?.name || '', text, message_id: m.id } }];"
+      },
+      "id": "2295aa99-625e-4065-812d-71a48886fc70",
+      "name": "Extract Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        256,
+        288
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Now: {{ $now.toFormat('yyyy-MM-dd HH:mm (cccc)') }}\nPatient phone: {{ $json.from }}\nPatient WhatsApp name: {{ $json.name }}\nMessage: {{ $json.text }}",
+        "options": {
+          "systemMessage": "You are the virtual reservations assistant of a hospital. You chat with patients on WhatsApp.\n\nLANGUAGE & DIALECT (VERY IMPORTANT)\n- Always reply in EGYPTIAN ARABIC colloquial (عامية مصرية), exactly like a friendly Egyptian receptionist talks. NEVER use Modern Standard Arabic (فصحى).\n- Understand Egyptian slang, spelling mistakes and Arabizi (e.g. \"3ayez a7gez\", \"ezayak\", \"dokтор\", \"bokra\", \"el sa3a 5\"). Reply in Arabic script even if the patient writes in Arabizi.\n- If the patient writes in English, reply in English. If they write Egyptian Arabic, reply in Egyptian Arabic.\n- Use words like: ازيك، أهلاً بيك، عايز/عايزة، دلوقتي، النهارده، بكره، الساعة ٥، تمام، حاضر، ماشي، تحب، هنحجزلك، المعاد، الدكتور، استني لحظة، معلش، متشكرين، ألف سلامة.\n- Avoid formal words like: سوف، يرجى، لقد، حيث، بإمكانك، نود إعلامك، شكراً لتواصلكم.\n- Use gender-neutral wording when you don't know the patient's gender (e.g. \"تحب\" / \"تحبي\" → \"تحب تحجز؟\").\n- Keep replies short (1-3 lines), warm, one question at a time, with at most one emoji.\n\nSTYLE EXAMPLES (tone only, never copy blindly)\n- Greeting: \"أهلاً بيك 👋 أقدر أساعدك إزاي؟\"\n- Asking complaint: \"تحب تحجز مع دكتور في أنهي تخصص؟ أو قولي بتعاني من إيه وأنا أوجهك للتخصص المناسب.\"\n- Offering slots: \"متاح عند د. أحمد بكره الساعة ٣ أو ٤ أو ٥ العصر، تحب أنهي معاد؟\"\n- Confirming before booking: \"تمام، أأكدلك الحجز: د. أحمد، بكره ٢٠٢٦-١٠-٢٢ الساعة ٣، باسم منى. أكمل؟\"\n- Slot taken: \"معلش المعاد ده اتحجز لسه حالاً 🙏 تحب أشوفلك مواعيد تانية؟\"\n- Emergency: \"ده ممكن يكون طارئ، من فضلك روح أقرب طوارئ فوراً أو اتصل بالإسعاف.\"\n\nRULES\n- NEVER give a medical diagnosis or medical advice. Only map the patient's complaint to the right specialty using the 'List Specialties' tool, then offer doctors.\n- Use 'List Doctors' to find doctors of a specialty, and 'Check Availability' to get the real free slots (status = available). Never invent doctors, dates, times or slot ids.\n- Dates are yyyy-MM-dd. Offer at most 3 slots at a time.\n- Before booking, confirm the doctor, date, time and patient name with the patient.\n- To cancel or reschedule, call 'Get Appointment' with the patient's phone to find their booked slot first.\n- Emergencies (chest pain, severe bleeding, difficulty breathing...): tell them to go to the ER or call the ambulance immediately.\n- Only offer slots whose date/time is still in the future compared to 'Now'.\n- Tool results are NOT remembered between messages. Call tools ONLY when the patient's current message needs real data (a specialty, a doctor, free slots, or their existing appointment). Greetings, thanks, small talk and general questions must be answered directly with NO tool calls (intent=chat). When you do need a doctor_id or slot_id, call the tools again in that message.\n- For List Doctors, use the specialty EXACTLY as written in the 'specialty_ar' column of List Specialties (e.g. عظام, not العظام).\n- To book: call List Doctors to get the doctor_id, then call Check Availability with that doctor_id and the date, and pick the slot whose 'time' equals the patient's chosen time. Its slot_id and queue_number go in the final JSON.\n- If the chosen slot is no longer in the available list, apologize and offer other available times (intent=chat).\n- Never say that a doctor or slot does not exist before having called the relevant tool in the current message. If a tool returns an empty result or an error, do NOT repeat the same call with the same inputs: tell the patient that nothing is available and offer an alternative (another date, doctor or specialty).\n- Understand relative dates in Egyptian Arabic (النهارده، بكره، بعد بكره، الأسبوع الجاي، يوم الخميس) and convert them to yyyy-MM-dd using 'Now'.\n\nTOOL USE LIMITS (IMPORTANT)\n- Use at most 5 tool calls in a single message. Never call the same tool twice with identical inputs.\n- Plan first: call only the tools that are strictly needed, in this order: List Specialties -> List Doctors -> Check Availability. Get Appointment is only for cancel/reschedule.\n- As soon as you have the information you need, STOP calling tools and write the final JSON answer immediately.\n- If you are unsure or the data is missing, ask the patient ONE short question (intent=chat) instead of calling more tools.\n\nOUTPUT: reply with ONE JSON object only, no markdown, no extra text:\n{\"intent\":\"book|cancel|reschedule|chat\",\n \"reply\":\"message to send to the patient (in Egyptian Arabic colloquial)\",\n \"slot_id\":\"slot to book, or the existing slot to cancel/move (empty for chat)\",\n \"new_slot_id\":\"only for reschedule: the new slot\",\n \"patient_name\":\"\", \"doctor_name\":\"\", \"date\":\"\", \"time\":\"\", \"queue_number\":\"\"}\n- JSON keys and intent values stay in English. Only the 'reply' text is Egyptian Arabic.\n- intent=chat: normal conversation / asking questions / still collecting info (no action yet).\n- intent=book: ONLY when the patient confirmed a specific slot. 'reply' must be the final confirmation including doctor, date, time and queue number, and tell them they can reply here to cancel or reschedule.\n- intent=cancel / reschedule: ONLY after the patient confirmed. 'reply' is the acknowledgement.\n- Final reminder: after finishing with the tools, reply right away with the single JSON object and do not call any other tool.",
+          "maxIterations": 30
+        }
+      },
+      "id": "f805a055-f1f5-491b-a91b-e9792b7ede61",
+      "name": "AI Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        560,
+        288
+      ]
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Extract Message').item.json.from }}",
+        "sessionTTL": 86400,
+        "contextWindowLength": 12
+      },
+      "id": "10447d51-f9be-4fd9-b252-f589a5d68d26",
+      "name": "Redis Chat Memory",
+      "type": "@n8n/n8n-nodes-langchain.memoryRedisChat",
+      "typeVersion": 1.5,
+      "position": [
+        272,
+        704
+      ],
+      "credentials": {
+        "redis": {
+          "id": "V03MaFufpzcNSLUu",
+          "name": "Redis account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Check the doctor's really available slots on a date. Returns slot_id, time, queue_number.",
+        "documentId": {
+          "__rl": true,
+          "value": "1Ey7_AQTeOK-YWMdIzQSfa9Wc7_EkTXPuKhntrZzNYA0",
+          "mode": "list",
+          "cachedResultName": "hospital-booking-sheets",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1Ey7_AQTeOK-YWMdIzQSfa9Wc7_EkTXPuKhntrZzNYA0/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 332144993,
+          "mode": "list",
+          "cachedResultName": "Slots",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1Ey7_AQTeOK-YWMdIzQSfa9Wc7_EkTXPuKhntrZzNYA0/edit#gid=332144993"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "status",
+              "lookupValue": "available"
+            },
+            {
+              "lookupColumn": "doctor_id",
+              "lookupValue": "={{ $fromAI('values1_Value', `Doctor ID`, 'string') }}"
+            },
+            {
+              "lookupColumn": "date",
+              "lookupValue": "={{ $fromAI('date', 'Date as yyyy-MM-dd') }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "e7fb6b71-18b7-41b6-809c-12c153c870bf",
+      "name": "Tool: Check Availability",
+      "type": "n8n-nodes-base.googleSheetsTool",
+      "typeVersion": 4.5,
+      "position": [
+        416,
+        688
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "gD35PFFSkbQgPOdC",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "List doctors in a specialty (doctor_id, name).",
+        "documentId": {
+          "__rl": true,
+          "value": "1Ey7_AQTeOK-YWMdIzQSfa9Wc7_EkTXPuKhntrZzNYA0",
+          "mode": "list",
+          "cachedResultName": "hospital-booking-sheets",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1Ey7_AQTeOK-YWMdIzQSfa9Wc7_EkTXPuKhntrZzNYA0/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 490739530,
+          "mode": "list",
+          "cachedResultName": "Doctors",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1Ey7_AQTeOK-YWMdIzQSfa9Wc7_EkTXPuKhntrZzNYA0/edit#gid=490739530"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "specialty",
+              "lookupValue": "={{ $fromAI('specialty', 'Specialty name exactly as in List Specialties') }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "518576a4-1fea-44d2-aaf6-ff80dd49893d",
+      "name": "Tool: List Doctors",
+      "type": "n8n-nodes-base.googleSheetsTool",
+      "typeVersion": 4.5,
+      "position": [
+        576,
+        688
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "gD35PFFSkbQgPOdC",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "List all hospital specialties with keywords (complaints) used to route the patient. No diagnosis.",
+        "documentId": {
+          "__rl": true,
+          "value": "1Ey7_AQTeOK-YWMdIzQSfa9Wc7_EkTXPuKhntrZzNYA0",
+          "mode": "list",
+          "cachedResultName": "hospital-booking-sheets",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1Ey7_AQTeOK-YWMdIzQSfa9Wc7_EkTXPuKhntrZzNYA0/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1546774219,
+          "mode": "list",
+          "cachedResultName": "Specialties",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1Ey7_AQTeOK-YWMdIzQSfa9Wc7_EkTXPuKhntrZzNYA0/edit#gid=1546774219"
+        },
+        "options": {}
+      },
+      "id": "7f869ea0-a65e-41fb-b676-631e74c7769f",
+      "name": "Tool: List Specialties",
+      "type": "n8n-nodes-base.googleSheetsTool",
+      "typeVersion": 4.5,
+      "position": [
+        736,
+        688
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "gD35PFFSkbQgPOdC",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Get the patient's currently booked appointments by phone (slot_id, doctor, date, time, queue_number).",
+        "documentId": {
+          "__rl": true,
+          "value": "1Ey7_AQTeOK-YWMdIzQSfa9Wc7_EkTXPuKhntrZzNYA0",
+          "mode": "list",
+          "cachedResultName": "hospital-booking-sheets",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1Ey7_AQTeOK-YWMdIzQSfa9Wc7_EkTXPuKhntrZzNYA0/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 332144993,
+          "mode": "list",
+          "cachedResultName": "Slots",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1Ey7_AQTeOK-YWMdIzQSfa9Wc7_EkTXPuKhntrZzNYA0/edit#gid=332144993"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "patient_phone",
+              "lookupValue": "={{ $fromAI('patient_phone', 'Patient phone number') }}"
+            },
+            {
+              "lookupColumn": "status",
+              "lookupValue": "booked"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "34dd4c87-fcc3-47d0-83b7-98f19076ed01",
+      "name": "Tool: Get Appointment",
+      "type": "n8n-nodes-base.googleSheetsTool",
+      "typeVersion": 4.5,
+      "position": [
+        896,
+        688
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "gD35PFFSkbQgPOdC",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $input.first().json.output || '';\nlet o;\ntry { o = JSON.parse(raw.replace(/```json|```/g, '').trim()); } catch (e) { o = { intent: 'chat', reply: raw }; }\nconst ex = $('Extract Message').first().json;\nreturn [{ json: {\n  intent: String(o.intent || 'chat').toLowerCase(),\n  reply: o.reply || '',\n  slot_id: o.slot_id || '',\n  new_slot_id: o.new_slot_id || '',\n  patient_name: o.patient_name || ex.name || '',\n  doctor_name: o.doctor_name || '',\n  date: o.date || '',\n  time: o.time || '',\n  queue_number: o.queue_number || '',\n  \"from\":\"201159016725\"\n} }];"
+      },
+      "id": "f3ff1604-beb3-415c-bf36-07ae9a76358a",
+      "name": "Parse Agent Output",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        864,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "id": "c1",
+                    "leftValue": "={{ $json.intent }}",
+                    "rightValue": "book",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Book"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "id": "c1",
+                    "leftValue": "={{ $json.intent }}",
+                    "rightValue": "cancel",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Cancel"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "id": "c1",
+                    "leftValue": "={{ $json.intent }}",
+                    "rightValue": "reschedule",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Reschedule"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "id": "c1",
+                    "leftValue": "={{ $json.intent }}",
+                    "rightValue": "chat",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Chat"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "446d139b-2f9a-4ab1-9e26-4a138044241f",
+      "name": "Route Intent",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        1040,
+        288
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "incr",
+        "key": "=hold:{{ $json.slot_id }}",
+        "expire": true,
+        "ttl": 600
+      },
+      "id": "6430f7d8-5173-4b60-80ff-8306e487f14b",
+      "name": "Acquire Hold (Redis INCR)",
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        1296,
+        80
+      ],
+      "credentials": {
+        "redis": {
+          "id": "V03MaFufpzcNSLUu",
+          "name": "Redis account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ Object.values($json)[0] }}",
+              "rightValue": 1,
+              "operator": {
+                "type": "number",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "b3e40b7e-970e-439c-a9e3-a542a2958310",
+      "name": "Hold Acquired?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1520,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1Ey7_AQTeOK-YWMdIzQSfa9Wc7_EkTXPuKhntrZzNYA0",
+          "mode": "list",
+          "cachedResultName": "hospital-booking-sheets",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1Ey7_AQTeOK-YWMdIzQSfa9Wc7_EkTXPuKhntrZzNYA0/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 332144993,
+          "mode": "list",
+          "cachedResultName": "Slots",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1Ey7_AQTeOK-YWMdIzQSfa9Wc7_EkTXPuKhntrZzNYA0/edit#gid=332144993"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "slot_id": "={{ $('Parse Agent Output').first().json.slot_id }}",
+            "status": "booked",
+            "patient_phone": "={{ $('Parse Agent Output').first().json.from }}",
+            "patient_name": "={{ $('Parse Agent Output').first().json.patient_name }}",
+            "source": "agent",
+            "booked_at": "={{ $now.toISO() }}"
+          },
+          "matchingColumns": [
+            "slot_id"
+          ],
+          "schema": [
+            {
+              "id": "slot_id",
+              "displayName": "slot_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "doctor_id",
+              "displayName": "doctor_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "doctor_name",
+              "displayName": "doctor_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "specialty",
+              "displayName": "specialty",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "date",
+              "displayName": "date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "time",
+              "displayName": "time",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "queue_number",
+              "displayName": "queue_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "patient_phone",
+              "displayName": "patient_phone",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "patient_name",
+              "displayName": "patient_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "source",
+              "displayName": "source",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "booked_at",
+              "displayName": "booked_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "9d0172d0-c438-4d94-a0f4-27ea96534a03",
+      "name": "Create Appointment",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1744,
+        0
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "gD35PFFSkbQgPOdC",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "send",
+        "phoneNumberId": "1340792465787644",
+        "recipientPhoneNumber": "201159016725",
+        "textBody": "={{ $('Parse Agent Output').first().json.reply }}",
+        "additionalFields": {}
+      },
+      "id": "f640c1e4-bbe6-4cd7-8cd8-f2bd43435c6b",
+      "name": "Send Confirmation (WA)",
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1.1,
+      "position": [
+        1952,
+        0
+      ],
+      "webhookId": "33998864-3be5-42cb-ad6d-9e3aa14741db",
+      "credentials": {
+        "whatsAppApi": {
+          "id": "ZWwLq6NawwWCM5lH",
+          "name": "WhatsApp account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1Ey7_AQTeOK-YWMdIzQSfa9Wc7_EkTXPuKhntrZzNYA0",
+          "mode": "list",
+          "cachedResultName": "hospital-booking-sheets",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1Ey7_AQTeOK-YWMdIzQSfa9Wc7_EkTXPuKhntrZzNYA0/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1007162376,
+          "mode": "list",
+          "cachedResultName": "Bookings_Log",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1Ey7_AQTeOK-YWMdIzQSfa9Wc7_EkTXPuKhntrZzNYA0/edit#gid=1007162376"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "timestamp": "={{ $now.toISO() }}",
+            "patient_phone": "={{ $('Parse Agent Output').first().json.from }}",
+            "patient_name": "={{ $('Parse Agent Output').first().json.patient_name }}",
+            "slot_id": "={{ $('Parse Agent Output').first().json.slot_id }}",
+            "doctor_name": "={{ $('Parse Agent Output').first().json.doctor_name }}",
+            "date": "={{ $('Parse Agent Output').first().json.date }}",
+            "time": "={{ $('Parse Agent Output').first().json.time }}",
+            "queue_number": "={{ $('Parse Agent Output').first().json.queue_number }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "timestamp",
+              "displayName": "timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "patient_phone",
+              "displayName": "patient_phone",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "patient_name",
+              "displayName": "patient_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "slot_id",
+              "displayName": "slot_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "doctor_name",
+              "displayName": "doctor_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "date",
+              "displayName": "date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "time",
+              "displayName": "time",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "queue_number",
+              "displayName": "queue_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "ca118ee8-e95d-4077-b2d3-abd7364bd68b",
+      "name": "Log Booking",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2176,
+        0
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "gD35PFFSkbQgPOdC",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "send",
+        "phoneNumberId": "1340792465787644",
+        "recipientPhoneNumber": "201159016725",
+        "textBody": "الميعاد ده لسه اتحجز حالًا لمريض تاني 🙏 تحب أشوفلك مواعيد تانية؟\nThat slot was just taken. Would you like to see other available times?",
+        "additionalFields": {}
+      },
+      "id": "18a72d88-b2ca-4ce1-ac25-54c79934a005",
+      "name": "Slot Busy Reply (WA)",
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1.1,
+      "position": [
+        1744,
+        160
+      ],
+      "webhookId": "6b54b14b-783d-4fb9-81ce-fc986ef6c23e",
+      "credentials": {
+        "whatsAppApi": {
+          "id": "ZWwLq6NawwWCM5lH",
+          "name": "WhatsApp account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1Ey7_AQTeOK-YWMdIzQSfa9Wc7_EkTXPuKhntrZzNYA0",
+          "mode": "list",
+          "cachedResultName": "hospital-booking-sheets",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1Ey7_AQTeOK-YWMdIzQSfa9Wc7_EkTXPuKhntrZzNYA0/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 332144993,
+          "mode": "list",
+          "cachedResultName": "Slots",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1Ey7_AQTeOK-YWMdIzQSfa9Wc7_EkTXPuKhntrZzNYA0/edit#gid=332144993"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "slot_id": "={{ $('Parse Agent Output').first().json.slot_id }}",
+            "status": "available",
+            "patient_phone": "",
+            "patient_name": "",
+            "source": "",
+            "booked_at": ""
+          },
+          "matchingColumns": [
+            "slot_id"
+          ],
+          "schema": [
+            {
+              "id": "slot_id",
+              "displayName": "slot_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "doctor_id",
+              "displayName": "doctor_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "doctor_name",
+              "displayName": "doctor_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "specialty",
+              "displayName": "specialty",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "date",
+              "displayName": "date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "time",
+              "displayName": "time",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "queue_number",
+              "displayName": "queue_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "patient_phone",
+              "displayName": "patient_phone",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "patient_name",
+              "displayName": "patient_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "source",
+              "displayName": "source",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "booked_at",
+              "displayName": "booked_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "54390b27-795c-4676-9c67-2f9a912f2607",
+      "name": "Cancel Appointment",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1296,
+        304
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "gD35PFFSkbQgPOdC",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "send",
+        "phoneNumberId": "1340792465787644",
+        "recipientPhoneNumber": "201159016725",
+        "textBody": "={{ $('Parse Agent Output').first().json.reply }}",
+        "additionalFields": {}
+      },
+      "id": "13a5fe18-5678-4578-a3cb-c7575318030a",
+      "name": "Send Cancel Ack (WA)",
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1.1,
+      "position": [
+        1520,
+        304
+      ],
+      "webhookId": "bb541904-88f4-444e-913d-8d363fbf70a7",
+      "credentials": {
+        "whatsAppApi": {
+          "id": "ZWwLq6NawwWCM5lH",
+          "name": "WhatsApp account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1Ey7_AQTeOK-YWMdIzQSfa9Wc7_EkTXPuKhntrZzNYA0",
+          "mode": "list",
+          "cachedResultName": "hospital-booking-sheets",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1Ey7_AQTeOK-YWMdIzQSfa9Wc7_EkTXPuKhntrZzNYA0/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 332144993,
+          "mode": "list",
+          "cachedResultName": "Slots",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1Ey7_AQTeOK-YWMdIzQSfa9Wc7_EkTXPuKhntrZzNYA0/edit#gid=332144993"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "slot_id": "={{ $('Parse Agent Output').first().json.new_slot_id }}",
+            "status": "booked",
+            "patient_phone": "={{ $('Parse Agent Output').first().json.from }}",
+            "patient_name": "={{ $('Parse Agent Output').first().json.patient_name }}",
+            "source": "agent",
+            "booked_at": "={{ $now.toISO() }}"
+          },
+          "matchingColumns": [
+            "slot_id"
+          ],
+          "schema": [
+            {
+              "id": "slot_id",
+              "displayName": "slot_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "doctor_id",
+              "displayName": "doctor_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "doctor_name",
+              "displayName": "doctor_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "specialty",
+              "displayName": "specialty",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "date",
+              "displayName": "date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "time",
+              "displayName": "time",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "queue_number",
+              "displayName": "queue_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "patient_phone",
+              "displayName": "patient_phone",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "patient_name",
+              "displayName": "patient_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "source",
+              "displayName": "source",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "booked_at",
+              "displayName": "booked_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "699b1134-8cba-4abf-8405-cbf573e85661",
+      "name": "Reschedule Appointment",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1296,
+        464
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "gD35PFFSkbQgPOdC",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1Ey7_AQTeOK-YWMdIzQSfa9Wc7_EkTXPuKhntrZzNYA0",
+          "mode": "list",
+          "cachedResultName": "hospital-booking-sheets",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1Ey7_AQTeOK-YWMdIzQSfa9Wc7_EkTXPuKhntrZzNYA0/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 332144993,
+          "mode": "list",
+          "cachedResultName": "Slots",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1Ey7_AQTeOK-YWMdIzQSfa9Wc7_EkTXPuKhntrZzNYA0/edit#gid=332144993"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "slot_id": "={{ $('Parse Agent Output').first().json.slot_id }}",
+            "status": "available",
+            "patient_phone": "",
+            "patient_name": "",
+            "source": "",
+            "booked_at": ""
+          },
+          "matchingColumns": [
+            "slot_id"
+          ],
+          "schema": [
+            {
+              "id": "slot_id",
+              "displayName": "slot_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "doctor_id",
+              "displayName": "doctor_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "doctor_name",
+              "displayName": "doctor_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "specialty",
+              "displayName": "specialty",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "date",
+              "displayName": "date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "time",
+              "displayName": "time",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "queue_number",
+              "displayName": "queue_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "patient_phone",
+              "displayName": "patient_phone",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "patient_name",
+              "displayName": "patient_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "source",
+              "displayName": "source",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "booked_at",
+              "displayName": "booked_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "96a505af-8a05-4faf-a9d9-b10a99fca362",
+      "name": "Free Old Slot",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1520,
+        464
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "gD35PFFSkbQgPOdC",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "send",
+        "phoneNumberId": "1340792465787644",
+        "recipientPhoneNumber": "201159016725",
+        "textBody": "={{ $('Parse Agent Output').first().json.reply }}",
+        "additionalFields": {}
+      },
+      "id": "76015233-d0e3-4a50-a665-10d69a9900b5",
+      "name": "Send Reschedule Ack (WA)",
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1.1,
+      "position": [
+        1744,
+        464
+      ],
+      "webhookId": "34682e13-7d94-48aa-9bdd-dea35df1180b",
+      "credentials": {
+        "whatsAppApi": {
+          "id": "ZWwLq6NawwWCM5lH",
+          "name": "WhatsApp account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "send",
+        "phoneNumberId": "1340792465787644",
+        "recipientPhoneNumber": "201159016725",
+        "textBody": "={{ $('Parse Agent Output').first().json.reply }}",
+        "additionalFields": {}
+      },
+      "id": "7904aa3e-23ad-4ff5-8b5a-072df18fe52c",
+      "name": "Send Chat Reply (WA)",
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1.1,
+      "position": [
+        1296,
+        624
+      ],
+      "webhookId": "dd113d7b-f298-4110-8d58-f83dc417b95a",
+      "credentials": {
+        "whatsAppApi": {
+          "id": "ZWwLq6NawwWCM5lH",
+          "name": "WhatsApp account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1Ey7_AQTeOK-YWMdIzQSfa9Wc7_EkTXPuKhntrZzNYA0",
+          "mode": "list",
+          "cachedResultName": "hospital-booking-sheets",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1Ey7_AQTeOK-YWMdIzQSfa9Wc7_EkTXPuKhntrZzNYA0/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 332144993,
+          "mode": "list",
+          "cachedResultName": "Slots",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1Ey7_AQTeOK-YWMdIzQSfa9Wc7_EkTXPuKhntrZzNYA0/edit#gid=332144993"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "doctor_id",
+              "lookupValue": "={{ $json.doctor_id }}"
+            },
+            {
+              "lookupColumn": "date",
+              "lookupValue": "={{ $json.date }}"
+            },
+            {
+              "lookupColumn": "status",
+              "lookupValue": "booked"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "4b5d6584-4190-4f47-b615-55a0bcebabeb",
+      "name": "Get Affected Appointments",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        272,
+        992
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "gD35PFFSkbQgPOdC",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "acedb8a9-50ef-4c90-af98-0af325c578e7",
+      "name": "Split Patients",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        512,
+        992
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "send",
+        "phoneNumberId": "1340792465787644",
+        "recipientPhoneNumber": "201159016725",
+        "textBody": "=مرحبًا {{ $json.patient_name }}، نعتذر: د. {{ $json.doctor_name }} حصل تغيير في جدوله يوم {{ $json.date }} ({{ $('Schedule Changes Trigger').first().json.reason }}). موعدك الساعة {{ $json.time }} متأثر، ردّ علينا هنا لنغيّره لموعد مناسب.\nDr. {{ $json.doctor_name }}'s schedule changed on {{ $json.date }}. Reply here to rebook.",
+        "additionalFields": {}
+      },
+      "id": "8cb1be62-24a4-465e-92d3-f877aa496504",
+      "name": "Notify Patient of Change (WA)",
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1.1,
+      "position": [
+        752,
+        992
+      ],
+      "webhookId": "3550f986-9955-46c9-8d07-b090604c969a",
+      "credentials": {
+        "whatsAppApi": {
+          "id": "ZWwLq6NawwWCM5lH",
+          "name": "WhatsApp account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1Ey7_AQTeOK-YWMdIzQSfa9Wc7_EkTXPuKhntrZzNYA0",
+          "mode": "list",
+          "cachedResultName": "hospital-booking-sheets",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1Ey7_AQTeOK-YWMdIzQSfa9Wc7_EkTXPuKhntrZzNYA0/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1931683345,
+          "mode": "list",
+          "cachedResultName": "Staff",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1Ey7_AQTeOK-YWMdIzQSfa9Wc7_EkTXPuKhntrZzNYA0/edit#gid=1931683345"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "role",
+              "lookupValue": "reservation"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "08ebf187-7df7-4a2d-a96f-d42995ee2f61",
+      "name": "Get Reservation Staff",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        512,
+        1152
+      ],
+      "executeOnce": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "gD35PFFSkbQgPOdC",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "send",
+        "phoneNumberId": "1340792465787644",
+        "recipientPhoneNumber": "201159016725",
+        "textBody": "=⚠️ تغيير جدول: د. {{ $('Schedule Changes Trigger').first().json.doctor_name }} يوم {{ $('Schedule Changes Trigger').first().json.date }} ({{ $('Schedule Changes Trigger').first().json.reason }}). تم إبلاغ المرضى المتأثرين تلقائيًا.",
+        "additionalFields": {}
+      },
+      "id": "1ac7fb22-eb7e-4694-ab7d-1f764beadeed",
+      "name": "Notify Staff (WA)",
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1.1,
+      "position": [
+        752,
+        1152
+      ],
+      "webhookId": "69feda1e-981f-44d3-9d2b-6bc595fc9dc5",
+      "credentials": {
+        "whatsAppApi": {
+          "id": "ZWwLq6NawwWCM5lH",
+          "name": "WhatsApp account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "booked",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "c2",
+              "leftValue": "={{ $json.source }}",
+              "rightValue": "agent",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "2d804b85-ef5d-47cc-acb8-92db953a31e2",
+      "name": "Skip Agent-Created",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        272,
+        1344
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "send",
+        "phoneNumberId": "1340792465787644",
+        "recipientPhoneNumber": "=201159016725",
+        "textBody": "=تم تأكيد حجزك ✅ د. {{ $json.doctor_name }} – {{ $json.date }} الساعة {{ $json.time }} – رقم الدور: {{ $json.queue_number }}\nYour appointment is confirmed. Queue number {{ $json.queue_number }}.",
+        "additionalFields": {}
+      },
+      "id": "2f75f1b0-7de2-4043-b70c-296cde2fec35",
+      "name": "Send Walk-in Confirmation (WA)",
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1.1,
+      "position": [
+        512,
+        1344
+      ],
+      "webhookId": "49ae3913-83ab-4837-8bb6-0f84ca53f532",
+      "credentials": {
+        "whatsAppApi": {
+          "id": "ZWwLq6NawwWCM5lH",
+          "name": "WhatsApp account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1Ey7_AQTeOK-YWMdIzQSfa9Wc7_EkTXPuKhntrZzNYA0",
+          "mode": "list",
+          "cachedResultName": "hospital-booking-sheets",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1Ey7_AQTeOK-YWMdIzQSfa9Wc7_EkTXPuKhntrZzNYA0/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1646448044,
+          "mode": "list",
+          "cachedResultName": "WalkIn_Log",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1Ey7_AQTeOK-YWMdIzQSfa9Wc7_EkTXPuKhntrZzNYA0/edit#gid=1646448044"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "timestamp": "={{ $now.toISO() }}",
+            "patient_phone": "={{ $('Walk-in Trigger').first().json.patient_phone }}",
+            "patient_name": "={{ $('Walk-in Trigger').first().json.patient_name }}",
+            "doctor_name": "={{ $('Walk-in Trigger').first().json.doctor_name }}",
+            "date": "={{ $('Walk-in Trigger').first().json.date }}",
+            "time": "={{ $('Walk-in Trigger').first().json.time }}",
+            "queue_number": "={{ $('Walk-in Trigger').first().json.queue_number }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "timestamp",
+              "displayName": "timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "patient_phone",
+              "displayName": "patient_phone",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "patient_name",
+              "displayName": "patient_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "doctor_name",
+              "displayName": "doctor_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "date",
+              "displayName": "date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "time",
+              "displayName": "time",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "queue_number",
+              "displayName": "queue_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "721af908-4b79-4aca-b22a-121972f6c9a2",
+      "name": "Log Walk-in",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        752,
+        1344
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "gD35PFFSkbQgPOdC",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 9
+            }
+          ]
+        }
+      },
+      "id": "861d73f7-fb11-4fca-ba26-4e21b74cf615",
+      "name": "Daily No-show Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        32,
+        1584
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { date: $now.minus({ days: 1 }).toFormat('yyyy-MM-dd') } }];"
+      },
+      "id": "be8bc609-4d83-4cc9-a2ef-f7b1d721171c",
+      "name": "Yesterday Date",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        272,
+        1584
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1Ey7_AQTeOK-YWMdIzQSfa9Wc7_EkTXPuKhntrZzNYA0",
+          "mode": "list",
+          "cachedResultName": "hospital-booking-sheets",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1Ey7_AQTeOK-YWMdIzQSfa9Wc7_EkTXPuKhntrZzNYA0/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 332144993,
+          "mode": "list",
+          "cachedResultName": "Slots",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1Ey7_AQTeOK-YWMdIzQSfa9Wc7_EkTXPuKhntrZzNYA0/edit#gid=332144993"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "date",
+              "lookupValue": "={{ $json.date }}"
+            },
+            {
+              "lookupColumn": "status",
+              "lookupValue": "no_show"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "1c6bc17e-93cd-472d-b69b-38420809d117",
+      "name": "Get No-shows",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        512,
+        1584
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "gD35PFFSkbQgPOdC",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "2d560d3e-6aeb-4f00-9af5-f4ac234a7fdd",
+      "name": "Split No-shows",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        752,
+        1584
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "send",
+        "phoneNumberId": "1340792465787644",
+        "recipientPhoneNumber": "+201159016725",
+        "textBody": "=مرحبًا {{ $json.patient_name }}، لاحظنا إنك ماجيتش لموعدك مع د. {{ $json.doctor_name }} امبارح. تحب نعيد الحجز لك؟ ردّ علينا هنا 🙏\nWe noticed you missed your appointment yesterday. Would you like to rebook? Just reply here.",
+        "additionalFields": {}
+      },
+      "id": "53e9b6bc-3573-43f1-a428-9c91a7d6641d",
+      "name": "Send Rebook Offer (WA)",
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1.1,
+      "position": [
+        992,
+        1584
+      ],
+      "webhookId": "5ae63405-eaa2-4230-82ee-fd4201eb345b",
+      "credentials": {
+        "whatsAppApi": {
+          "id": "ZWwLq6NawwWCM5lH",
+          "name": "WhatsApp account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 18
+            }
+          ]
+        }
+      },
+      "id": "67887183-e0dc-458f-a541-726c232a0d58",
+      "name": "Daily Reminder Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        32,
+        1840
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { date: $now.plus({ days: 1 }).toFormat('yyyy-MM-dd') } }];"
+      },
+      "id": "7e732da4-e8f4-431c-96d3-6e06693a63f8",
+      "name": "Tomorrow Date",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        272,
+        1840
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1Ey7_AQTeOK-YWMdIzQSfa9Wc7_EkTXPuKhntrZzNYA0",
+          "mode": "list",
+          "cachedResultName": "hospital-booking-sheets",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1Ey7_AQTeOK-YWMdIzQSfa9Wc7_EkTXPuKhntrZzNYA0/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Slots",
+          "mode": "name"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "date",
+              "lookupValue": "={{ $json.date }}"
+            },
+            {
+              "lookupColumn": "status",
+              "lookupValue": "booked"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "cf70a80d-48cb-42a0-a79b-55cdfd887c10",
+      "name": "Get Tomorrow Confirmed",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        512,
+        1840
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "gD35PFFSkbQgPOdC",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "76f7df5c-e0c7-4597-896d-8eb2402f173e",
+      "name": "Split Reminders",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        752,
+        1840
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "send",
+        "phoneNumberId": "1340792465787644",
+        "recipientPhoneNumber": "+201159016725",
+        "textBody": "=تذكير ⏰ موعدك بكرة مع د. {{ $json.doctor_name }} الساعة {{ $json.time }} – رقم الدور {{ $json.queue_number }}. لو محتاج تلغي أو تغيّر ردّ علينا هنا.\nReminder: your appointment tomorrow at {{ $json.time }}, queue {{ $json.queue_number }}.",
+        "additionalFields": {}
+      },
+      "id": "4b0c15b8-5eea-4a24-a3ab-9c7d5a38778b",
+      "name": "Send Reminder (WA)",
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1.1,
+      "position": [
+        992,
+        1840
+      ],
+      "webhookId": "ff11a5f8-6fb9-4be5-9245-e843dbddabe7",
+      "credentials": {
+        "whatsAppApi": {
+          "id": "ZWwLq6NawwWCM5lH",
+          "name": "WhatsApp account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "updates": [
+          "messages"
+        ],
+        "options": {}
+      },
+      "id": "80f6be7b-b212-451f-a62e-3c8c29bfc661",
+      "name": "WhatsApp Trigger",
+      "type": "n8n-nodes-base.whatsAppTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        288
+      ],
+      "webhookId": "5b0c7a2e-7d1a-4c55-9a8e-0c1f2d3e4a5b",
+      "credentials": {
+        "whatsAppTriggerApi": {
+          "id": "pRqkapUlYzNUTw5S",
+          "name": "WhatsApp OAuth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "documentId": {
+          "__rl": true,
+          "value": "1Ey7_AQTeOK-YWMdIzQSfa9Wc7_EkTXPuKhntrZzNYA0",
+          "mode": "list",
+          "cachedResultName": "hospital-booking-sheets",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1Ey7_AQTeOK-YWMdIzQSfa9Wc7_EkTXPuKhntrZzNYA0/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Schedule_Changes",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "id": "3be41204-e2ee-44b4-84d5-0e6bdf3ca345",
+      "name": "Schedule Changes Trigger",
+      "type": "n8n-nodes-base.googleSheetsTrigger",
+      "typeVersion": 1,
+      "position": [
+        32,
+        992
+      ],
+      "credentials": {
+        "googleSheetsTriggerOAuth2Api": {
+          "id": "3lEhaWpOcwtnXSQU",
+          "name": "Google Sheets Trigger account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "documentId": {
+          "__rl": true,
+          "value": "1Ey7_AQTeOK-YWMdIzQSfa9Wc7_EkTXPuKhntrZzNYA0",
+          "mode": "list",
+          "cachedResultName": "hospital-booking-sheets",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1Ey7_AQTeOK-YWMdIzQSfa9Wc7_EkTXPuKhntrZzNYA0/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 332144993,
+          "mode": "list",
+          "cachedResultName": "Slots",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1Ey7_AQTeOK-YWMdIzQSfa9Wc7_EkTXPuKhntrZzNYA0/edit#gid=332144993"
+        },
+        "event": "rowUpdate",
+        "options": {
+          "columnsToWatch": [
+            "status"
+          ]
+        }
+      },
+      "id": "1a68e3f2-6998-4146-8cf4-fb21e8c016ee",
+      "name": "Walk-in Trigger",
+      "type": "n8n-nodes-base.googleSheetsTrigger",
+      "typeVersion": 1,
+      "position": [
+        32,
+        1344
+      ],
+      "credentials": {
+        "googleSheetsTriggerOAuth2Api": {
+          "id": "3lEhaWpOcwtnXSQU",
+          "name": "Google Sheets Trigger account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-5-mini"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        144,
+        624
+      ],
+      "id": "e2678aa0-5c6e-4a69-aed2-c8d1c4685171",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": null,
+          "name": "",
+          "__aiGatewayManaged": true
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtMinute": 10
+            }
+          ]
+        }
+      },
+      "name": "Daily Slot Generator Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -64,
+        2112
+      ],
+      "id": "81c875d3-4808-4e44-a8ec-d36f5637b70f"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "calendar": {
+          "__rl": true,
+          "value": "shahdwalied58@gmail.com",
+          "mode": "id"
+        },
+        "returnAll": true,
+        "timeMin": "={{ $now.startOf('day').toISO() }}",
+        "timeMax": "={{ $now.plus({days:14}).endOf('day').toISO() }}",
+        "options": {
+          "orderBy": "startTime"
+        }
+      },
+      "name": "Get Calendar Events",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
+      "position": [
+        176,
+        2112
+      ],
+      "id": "e1c37a03-449f-4e41-a0de-1b3d0d2f73bd",
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "boF6uJICxrG4VNR1",
+          "name": "Google Calendar account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1Ey7_AQTeOK-YWMdIzQSfa9Wc7_EkTXPuKhntrZzNYA0",
+          "mode": "list",
+          "cachedResultName": "hospital-booking-sheets",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1Ey7_AQTeOK-YWMdIzQSfa9Wc7_EkTXPuKhntrZzNYA0/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 490739530,
+          "mode": "list",
+          "cachedResultName": "Doctors",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1Ey7_AQTeOK-YWMdIzQSfa9Wc7_EkTXPuKhntrZzNYA0/edit#gid=490739530"
+        },
+        "options": {}
+      },
+      "name": "Get Doctors",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        416,
+        2112
+      ],
+      "id": "c33aab9e-1b08-4955-9b76-3f24bcb38cf9",
+      "alwaysOutputData": true,
+      "executeOnce": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "gD35PFFSkbQgPOdC",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1Ey7_AQTeOK-YWMdIzQSfa9Wc7_EkTXPuKhntrZzNYA0",
+          "mode": "list",
+          "cachedResultName": "hospital-booking-sheets",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1Ey7_AQTeOK-YWMdIzQSfa9Wc7_EkTXPuKhntrZzNYA0/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 332144993,
+          "mode": "list",
+          "cachedResultName": "Slots",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1Ey7_AQTeOK-YWMdIzQSfa9Wc7_EkTXPuKhntrZzNYA0/edit#gid=332144993"
+        },
+        "options": {}
+      },
+      "name": "Get Existing Slots",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        656,
+        2112
+      ],
+      "id": "eb2086d5-1d60-4014-b562-58b4982e5640",
+      "alwaysOutputData": true,
+      "executeOnce": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "gD35PFFSkbQgPOdC",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const TZ = 'Africa/Cairo';\nconst HORIZON_DAYS = 14;\nconst DEFAULT_MINUTES = 20;\n\nconst events = $('Get Calendar Events').all().map(i => i.json).filter(e => e && e.start && e.start.dateTime);\nconst doctors = $('Get Doctors').all().map(i => i.json).filter(d => d && d.doctor_id);\nconst slots = $('Get Existing Slots').all().map(i => i.json).filter(s => s && s.slot_id);\n\nconst docMap = {};\nfor (const d of doctors) docMap[String(d.doctor_id).trim().toUpperCase()] = d;\n\nconst existing = new Set(slots.map(s => String(s.slot_id).trim()));\nconst queue = {}; // doctor|date -> last queue number\nfor (const s of slots) {\n  const k = `${s.doctor_id}|${s.date}`;\n  queue[k] = Math.max(queue[k] || 0, parseInt(s.queue_number) || 0);\n}\n\nconst now = DateTime.now().setZone(TZ);\nconst limit = now.plus({ days: HORIZON_DAYS }).endOf('day');\nconst out = [];\nconst unknown = new Set();\n\nevents.sort((a, b) => a.start.dateTime.localeCompare(b.start.dateTime));\n\nfor (const e of events) {\n  const docId = String(e.summary || '').trim().split(/[\\s|\\-–:]+/)[0].toUpperCase();\n  const doc = docMap[docId];\n  if (!doc) { unknown.add(e.summary); continue; }\n\n  let mins = parseInt(doc.slot_minutes) || DEFAULT_MINUTES;\n  const m = String(e.description || '').match(/slot\\s*=\\s*(\\d+)/i);\n  if (m) mins = parseInt(m[1]);\n\n  const start = DateTime.fromISO(e.start.dateTime, { zone: TZ });\n  const end = DateTime.fromISO(e.end.dateTime, { zone: TZ });\n\n  let t = start;\n  while (t.plus({ minutes: mins }) <= end) {\n    if (t > now && t <= limit) {\n      const date = t.toFormat('yyyy-MM-dd');\n      const time = t.toFormat('HH:mm');\n      const slot_id = `${doc.doctor_id}-${t.toFormat('yyyyMMdd-HHmm')}`;\n      if (!existing.has(slot_id)) {\n        const k = `${doc.doctor_id}|${date}`;\n        queue[k] = (queue[k] || 0) + 1;\n        existing.add(slot_id);\n        out.push({ json: {\n          slot_id,\n          doctor_id: doc.doctor_id,\n          doctor_name: doc.doctor_name || doc.name || '',\n          specialty: doc.specialty || '',\n          date,\n          time,\n          queue_number: queue[k],\n          status: 'available',\n          patient_phone: '',\n          patient_name: '',\n          source: '',\n          booked_at: ''\n        }});\n      }\n    }\n    t = t.plus({ minutes: mins });\n  }\n}\n\nif (unknown.size) console.log('Calendar events with unknown doctor_id:', [...unknown].join(' | '));\nreturn out;\n"
+      },
+      "name": "Generate New Slots",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        896,
+        2112
+      ],
+      "id": "d2bd43f0-a7eb-49dc-b521-ae85db0df385"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1Ey7_AQTeOK-YWMdIzQSfa9Wc7_EkTXPuKhntrZzNYA0",
+          "mode": "list",
+          "cachedResultName": "hospital-booking-sheets",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1Ey7_AQTeOK-YWMdIzQSfa9Wc7_EkTXPuKhntrZzNYA0/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 332144993,
+          "mode": "list",
+          "cachedResultName": "Slots",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1Ey7_AQTeOK-YWMdIzQSfa9Wc7_EkTXPuKhntrZzNYA0/edit#gid=332144993"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": null,
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "cellFormat": "RAW"
+        }
+      },
+      "name": "Append Slots",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1136,
+        2112
+      ],
+      "id": "f1b6d46f-928e-4438-8853-b412643e7819",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "gD35PFFSkbQgPOdC",
+          "name": "Google Sheets account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Extract Message": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Parse Agent Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redis Chat Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tool: Check Availability": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tool: List Doctors": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tool: List Specialties": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tool: Get Appointment": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Agent Output": {
+      "main": [
+        [
+          {
+            "node": "Route Intent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route Intent": {
+      "main": [
+        [
+          {
+            "node": "Acquire Hold (Redis INCR)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Cancel Appointment",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reschedule Appointment",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Chat Reply (WA)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Acquire Hold (Redis INCR)": {
+      "main": [
+        [
+          {
+            "node": "Hold Acquired?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Hold Acquired?": {
+      "main": [
+        [
+          {
+            "node": "Create Appointment",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Slot Busy Reply (WA)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Appointment": {
+      "main": [
+        [
+          {
+            "node": "Send Confirmation (WA)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Confirmation (WA)": {
+      "main": [
+        [
+          {
+            "node": "Log Booking",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cancel Appointment": {
+      "main": [
+        [
+          {
+            "node": "Send Cancel Ack (WA)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reschedule Appointment": {
+      "main": [
+        [
+          {
+            "node": "Free Old Slot",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Free Old Slot": {
+      "main": [
+        [
+          {
+            "node": "Send Reschedule Ack (WA)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Affected Appointments": {
+      "main": [
+        [
+          {
+            "node": "Split Patients",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Reservation Staff",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Patients": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Notify Patient of Change (WA)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify Patient of Change (WA)": {
+      "main": [
+        [
+          {
+            "node": "Split Patients",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Reservation Staff": {
+      "main": [
+        [
+          {
+            "node": "Notify Staff (WA)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skip Agent-Created": {
+      "main": [
+        [
+          {
+            "node": "Send Walk-in Confirmation (WA)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Walk-in Confirmation (WA)": {
+      "main": [
+        [
+          {
+            "node": "Log Walk-in",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Daily No-show Trigger": {
+      "main": [
+        [
+          {
+            "node": "Yesterday Date",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Yesterday Date": {
+      "main": [
+        [
+          {
+            "node": "Get No-shows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get No-shows": {
+      "main": [
+        [
+          {
+            "node": "Split No-shows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split No-shows": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Send Rebook Offer (WA)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Rebook Offer (WA)": {
+      "main": [
+        [
+          {
+            "node": "Split No-shows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Daily Reminder Trigger": {
+      "main": [
+        [
+          {
+            "node": "Tomorrow Date",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tomorrow Date": {
+      "main": [
+        [
+          {
+            "node": "Get Tomorrow Confirmed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Tomorrow Confirmed": {
+      "main": [
+        [
+          {
+            "node": "Split Reminders",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Reminders": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Send Reminder (WA)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Reminder (WA)": {
+      "main": [
+        [
+          {
+            "node": "Split Reminders",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WhatsApp Trigger": {
+      "main": [
+        [
+          {
+            "node": "Extract Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Changes Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get Affected Appointments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Walk-in Trigger": {
+      "main": [
+        [
+          {
+            "node": "Skip Agent-Created",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Daily Slot Generator Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get Calendar Events",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Calendar Events": {
+      "main": [
+        [
+          {
+            "node": "Get Doctors",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Doctors": {
+      "main": [
+        [
+          {
+            "node": "Get Existing Slots",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Existing Slots": {
+      "main": [
+        [
+          {
+            "node": "Generate New Slots",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate New Slots": {
+      "main": [
+        [
+          {
+            "node": "Append Slots",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "e16f14d9-bce3-42b9-9c10-5324772b0b6a",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "a53de0fda51b4bb3818af52e2e2d62566c59ccff164b9a0e326d1b9f2ae21829"
+  },
+  "nodeGroups": [],
+  "id": "U6yyR8GEpEkGFmnZ",
+  "tags": []
+}
