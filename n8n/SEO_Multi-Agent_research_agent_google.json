@@ -1,0 +1,2107 @@
+{
+  "name": "SEO Multi-Agent Content System - Research Agent + Google",
+  "nodes": [
+    {
+      "parameters": {
+        "formTitle": "SEO Content Automation",
+        "formDescription": "Enter the topic and website details to run the multi-agent SEO pipeline.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Topic",
+              "fieldName": "topic",
+              "placeholder": "eg.اخر تحديثات seo searches",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Niche",
+              "fieldName": "niche",
+              "placeholder": "e.g. health & nutrition"
+            },
+            {
+              "fieldLabel": "Number of Articles",
+              "fieldType": "number",
+              "fieldName": "articles_count",
+              "placeholder": "e.g. 5 (max 20)",
+              "defaultValue": "5",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Articles From Date (optional)",
+              "fieldType": "date",
+              "fieldName": "from_date"
+            },
+            {
+              "fieldLabel": "Language",
+              "fieldType": "dropdown",
+              "fieldName": "language",
+              "defaultValue": "Arabic",
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "Arabic"
+                  },
+                  {
+                    "option": "English"
+                  }
+                ]
+              }
+            },
+            {
+              "fieldLabel": "Website URL",
+              "fieldName": "website",
+              "placeholder": "https://example.com",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Website pages (one URL - title per line)",
+              "fieldType": "textarea",
+              "fieldName": "pages",
+              "placeholder": "https://example.com/page - Page title"
+            },
+            {
+              "fieldLabel": "Search Console property (optional)",
+              "fieldName": "gsc_site",
+              "placeholder": "https://example.com/ or sc-domain:example.com"
+            },
+            {
+              "fieldLabel": "Google Analytics 4 Property ID (optional)",
+              "fieldName": "ga4_property",
+              "placeholder": "numbers only, e.g. 123456789"
+            }
+          ]
+        },
+        "options": {
+          "path": "seo-multi-agent",
+          "respondWithOptions": {
+            "values": {
+              "formSubmittedText": "Pipeline started. Reports are generated in the execution output."
+            }
+          }
+        }
+      },
+      "id": "64dcdf68-b34d-4c39-9b97-275b8586331d",
+      "name": "SEO Request Form",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.6,
+      "position": [
+        9136,
+        256
+      ],
+      "webhookId": "cd3f6f73-f75c-4a73-95c7-6456d802ffbd"
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "destinationFieldName": "results",
+        "options": {}
+      },
+      "id": "7a616d42-9be0-45a4-b64b-45587e816aad",
+      "name": "Collect Search Results",
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        9800,
+        -240
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://suggestqueries.google.com/complete/search",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "client",
+              "value": "firefox"
+            },
+            {
+              "name": "hl",
+              "value": "={{ $(\"SEO Request Form\").first().json.language === \"Arabic\" ? \"ar\" : \"en\" }}"
+            },
+            {
+              "name": "q",
+              "value": "={{ $(\"SEO Request Form\").first().json.topic }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "71be335a-0ad5-4b52-94a3-2c59c993a8ad",
+      "name": "Autocomplete Keyword Ideas (free)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        9808,
+        -240
+      ],
+      "executeOnce": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "destinationFieldName": "suggestions",
+        "options": {}
+      },
+      "id": "6025ff99-54ea-4233-afcb-aca94581f0a4",
+      "name": "Collect Keyword Ideas",
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        10032,
+        -240
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Topic: {{ $(\"SEO Request Form\").first().json.topic }}\nNiche: {{ $(\"SEO Request Form\").first().json.niche }}\nLanguage: {{ $(\"SEO Request Form\").first().json.language }}\n\nSearch results (JSON):\n{{ JSON.stringify($(\"Collect Search Results\").first().json.results.map(r => ({title:r.title,url:r.url,date:r.date,text:(r.text||\"\").slice(0,5000)}))) }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "You are an SEO research analyst. Analyze the provided search results only; never invent URLs. Extract key findings, recurring topics, content gaps, source list with URLs, and competitor observations with SEO opportunities. Write values in the requested language. Each result includes title, url, publish date and the article text; base your findings on the article text, list concrete updates/findings with their source and date, and include each source's date."
+        }
+      },
+      "id": "08b93fb4-082a-4334-9e64-ddc80c6ab4a5",
+      "name": "Article Analysis Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        10256,
+        -240
+      ]
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3.8-flash",
+        "options": {
+          "maxOutputTokens": 8192,
+          "temperature": 0.3
+        }
+      },
+      "id": "728f4963-8137-4e17-ae5e-66981d2dac4c",
+      "name": "Gemini - Analysis",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        10272,
+        -16
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": null,
+          "name": "Gateway credits",
+          "__aiGatewayManaged": true
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "{\"key_findings\":[\"finding\"],\"recurring_topics\":[\"topic\"],\"content_gaps\":[\"gap\"],\"sources\":[{\"title\":\"title\",\"url\":\"https://...\",\"takeaway\":\"summary\",\"date\":\"date or empty\"}],\"competitors\":[{\"title\":\"title\",\"url\":\"https://...\",\"topic\":\"topic\",\"observation\":\"notes\",\"seo_opportunity\":\"opportunity\"}]}"
+      },
+      "id": "7a528f11-e690-4cfc-b0ae-f4e230149730",
+      "name": "Analysis Schema",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        10400,
+        -16
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Topic: {{ $(\"SEO Request Form\").first().json.topic }}\nLanguage: {{ $(\"SEO Request Form\").first().json.language }}\n\nGoogle Autocomplete suggestions (real data):\n{{ JSON.stringify($(\"Collect Keyword Ideas\").first().json.suggestions) }}\n\nResearch analysis:\n{{ JSON.stringify($(\"Article Analysis Agent\").first().json.output) }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "You are a keyword research specialist. Build the keyword map ONLY from the autocomplete suggestions and research analysis provided. Do NOT invent search volumes or CPC numbers; no volume data is available in this free setup. Pick one primary keyword, secondary keywords, related terms, search intent, and map each keyword to a target article section and a priority."
+        }
+      },
+      "id": "324fd3a5-e92b-4fa8-9ab7-d5bb804095e8",
+      "name": "Keyword Research Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        11024,
+        -80
+      ]
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3.8-flash",
+        "options": {
+          "maxOutputTokens": 8192,
+          "temperature": 0.2
+        }
+      },
+      "id": "2eb81b15-2bff-4759-b0ca-5e5f6daebc2d",
+      "name": "Gemini - Keywords",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        11040,
+        160
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": null,
+          "name": "Gateway credits",
+          "__aiGatewayManaged": true
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "{\"primary_keyword\":\"keyword\",\"search_intent\":\"informational\",\"secondary_keywords\":[\"kw\"],\"related_terms\":[\"term\"],\"keyword_map\":[{\"keyword\":\"kw\",\"type\":\"primary|secondary|related\",\"intent\":\"informational\",\"target_section\":\"H2 title or page\",\"priority\":\"high|medium|low\",\"source\":\"autocomplete|search-results\"}]}"
+      },
+      "id": "5f62ef74-340f-4480-ab7f-ec7d0c6c5fc4",
+      "name": "Keyword Schema",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        11168,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Write the article.\nTopic: {{ $(\"SEO Request Form\").first().json.topic }}\nNiche: {{ $(\"SEO Request Form\").first().json.niche }}\nLanguage: {{ $(\"SEO Request Form\").first().json.language }}\n\nKeyword plan:\n{{ JSON.stringify($(\"Keyword Research Agent\").first().json.output) }}\n\nResearch:\n{{ JSON.stringify($(\"Article Analysis Agent\").first().json.output) }}",
+        "options": {
+          "systemMessage": "You are an expert SEO content writer. Write an original, well-structured article in Markdown in the requested language with: one H1; an introduction; a dedicated 'latest updates' section (in Arabic: آخر التحديثات) that lists each concrete update or finding from the research together with its source name and publication date; main sections with H2/H3 headings; a conclusion (in Arabic: خاتمة); a short FAQ; and a final Sources section (in Arabic: المصادر) listing each source title, URL and date taken from the research. Ground every claim in the provided research. If the research does not contain a specific update, name or date, do not state one and never guess. Do not use code blocks or ASCII trees; use lists or tables instead. Apply E-E-A-T (cite sources by name) and GEO (clear direct answers, definitions, lists suitable for AI answer engines). Integrate the primary and secondary keywords naturally; never keyword-stuff. Do not copy source text and do not invent statistics or facts."
+        }
+      },
+      "id": "ac12c5d4-3048-44f6-aff2-b4c735ab16f0",
+      "name": "AI Article Writer Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        11312,
+        384
+      ]
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3.8-flash",
+        "options": {
+          "maxOutputTokens": 16384,
+          "temperature": 0.7
+        }
+      },
+      "id": "df1402f4-b40c-4ede-a2c4-a369b04b25f8",
+      "name": "Gemini - Writer",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        11328,
+        752
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": null,
+          "name": "Gateway credits",
+          "__aiGatewayManaged": true
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Primary keyword plan:\n{{ JSON.stringify($(\"Keyword Research Agent\").first().json.output) }}\n\nArticle:\n{{ $(\"AI Article Writer Agent\").first().json.output }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "You are an on-page SEO specialist. Create an accurate Meta Title (max 60 characters) and Meta Description (max 155 characters) matching the search intent, a URL slug, and review headings, keyword placement, structure and readability of the article, returning concrete recommendations. Write in the article language."
+        }
+      },
+      "id": "9a4d04c4-323f-44fb-adde-5836e71a3398",
+      "name": "SEO Optimization & Metadata Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        11600,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3.8-flash",
+        "options": {
+          "maxOutputTokens": 8192,
+          "temperature": 0.2
+        }
+      },
+      "id": "97417d8c-f025-4024-b5ee-4ec32d24d832",
+      "name": "Gemini - SEO",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        11616,
+        752
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": null,
+          "name": "Gateway credits",
+          "__aiGatewayManaged": true
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "{\"meta_title\":\"title (max 60 chars)\",\"meta_description\":\"description (max 155 chars)\",\"suggested_slug\":\"slug\",\"on_page_recommendations\":[{\"area\":\"headings|keywords|metadata|structure|readability\",\"issue\":\"issue\",\"recommendation\":\"fix\"}],\"seo_score_estimate_note\":\"qualitative note\"}"
+      },
+      "id": "dec74ac6-073d-4c86-ba34-291dc39a329a",
+      "name": "SEO Schema",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        11744,
+        752
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Website pages (use ONLY these URLs):\n{{ $(\"SEO Request Form\").first().json.pages || \"No pages provided\" }}\n\nArticle:\n{{ $(\"AI Article Writer Agent\").first().json.output }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "You are an internal linking specialist. Recommend internal links from the article to the provided website pages only, with natural anchor text and the section where each link fits. Prioritize important and topically related pages. If no pages are provided return an empty internal_links array. Never invent URLs."
+        }
+      },
+      "id": "042b5c00-a50f-473a-9bdb-03f901e4ed2f",
+      "name": "Internal Linking Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        11968,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3.8-flash",
+        "options": {
+          "maxOutputTokens": 4096,
+          "temperature": 0.2
+        }
+      },
+      "id": "f6d4519f-25d2-4ce5-bebb-8583e3cc3bc4",
+      "name": "Gemini - Linking",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        11968,
+        752
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": null,
+          "name": "Gateway credits",
+          "__aiGatewayManaged": true
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "{\"internal_links\":[{\"target_url\":\"https://...\",\"anchor_text\":\"anchor\",\"place_in_section\":\"heading\",\"reason\":\"why\"}]}"
+      },
+      "id": "1f9a21d7-e419-4fec-b204-19a1dca97b24",
+      "name": "Linking Schema",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        12096,
+        752
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://www.googleapis.com/webmasters/v3/sites/{{ encodeURIComponent($(\"SEO Request Form\").first().json.gsc_site || \"\") }}/searchAnalytics/query",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleOAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ startDate: $now.minus({ days: 90 }).toFormat(\"yyyy-MM-dd\"), endDate: $now.minus({ days: 3 }).toFormat(\"yyyy-MM-dd\"), dimensions: [\"query\"], rowLimit: 25 }) }}",
+        "options": {}
+      },
+      "id": "45569c16-68e0-4ed3-bb43-ca7769802289",
+      "name": "Search Console Performance (free API)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        12464,
+        176
+      ],
+      "executeOnce": true,
+      "onError": "continueRegularOutput",
+      "notes": "Needs a Google OAuth2 API credential with scope https://www.googleapis.com/auth/webmasters.readonly and Search Console API enabled."
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a1",
+              "name": "topic",
+              "type": "string",
+              "value": "={{ $(\"SEO Request Form\").first().json.topic }}"
+            },
+            {
+              "id": "a2",
+              "name": "article_markdown",
+              "type": "string",
+              "value": "={{ $(\"AI Article Writer Agent\").first().json.output }}"
+            },
+            {
+              "id": "a3",
+              "name": "meta",
+              "type": "object",
+              "value": "={{ $(\"SEO Optimization & Metadata Agent\").first().json.output }}"
+            },
+            {
+              "id": "a4",
+              "name": "internal_links",
+              "type": "array",
+              "value": "={{ $(\"Internal Linking Agent\").first().json.output.internal_links }}"
+            },
+            {
+              "id": "a5",
+              "name": "keyword_plan",
+              "type": "object",
+              "value": "={{ $(\"Keyword Research Agent\").first().json.output }}"
+            },
+            {
+              "id": "a6",
+              "name": "research",
+              "type": "object",
+              "value": "={{ $(\"Article Analysis Agent\").first().json.output }}"
+            },
+            {
+              "id": "a7",
+              "name": "search_console",
+              "type": "object",
+              "value": "={{ $(\"Search Console Performance (free API)\").first().json }}"
+            },
+            {
+              "id": "a8",
+              "name": "analytics",
+              "type": "object",
+              "value": "={{ $json }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "f2824ba0-05ad-40aa-9a42-d14f0ac147ac",
+      "name": "Package Results",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        12736,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "research.competitors",
+        "options": {}
+      },
+      "id": "af445e12-c2e1-482f-8cef-71f2216ecd76",
+      "name": "Split Competitors",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1.1,
+      "position": [
+        12960,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "xlsx",
+        "binaryPropertyName": "competitor_report",
+        "options": {
+          "fileName": "competitor-research.xlsx",
+          "sheetName": "Competitors"
+        }
+      },
+      "id": "692f6c6b-c324-4f7d-aa14-d4079edd3e12",
+      "name": "Competitor Research Excel",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        13184,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "keyword_plan.keyword_map",
+        "options": {}
+      },
+      "id": "5c029e09-9161-4b1d-a01d-1589d0e4ad0b",
+      "name": "Split Keywords",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1.1,
+      "position": [
+        12960,
+        496
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "xlsx",
+        "binaryPropertyName": "keyword_report",
+        "options": {
+          "fileName": "keyword-analysis.xlsx",
+          "sheetName": "Keywords"
+        }
+      },
+      "id": "d2d02fee-0336-4470-92c5-c94d02d9feca",
+      "name": "Keyword Analysis Excel",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        13184,
+        496
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const run=new Date().toISOString().slice(0,16).replace('T',' ');const topic=$('SEO Request Form').first().json.topic;const o=$input.first().json.output;const rows=[];const add=r=>rows.push({json:{'Run Date':run,'Topic':topic,...r}});\n\n(o.key_findings||[]).forEach(x=>add({Section:'Key finding',Item:x,URL:'',Details:'',Opportunity:''}));\n(o.recurring_topics||[]).forEach(x=>add({Section:'Recurring topic',Item:x,URL:'',Details:'',Opportunity:''}));\n(o.content_gaps||[]).forEach(x=>add({Section:'Content gap',Item:x,URL:'',Details:'',Opportunity:''}));\n(o.sources||[]).forEach(s=>add({Section:'Source',Item:s.title,URL:s.url,Details:s.takeaway+(s.date?' ['+s.date+']':''),Opportunity:''}));\n(o.competitors||[]).forEach(c=>add({Section:'Competitor',Item:c.title,URL:c.url,Details:c.observation,Opportunity:c.seo_opportunity}));\nreturn rows;"
+      },
+      "id": "7acc60e1-4415-49f1-a2de-383a8df2ca72",
+      "name": "Format Analysis Rows",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        10144,
+        1040
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1VuFBmNLDse8ZBQvrTGVOWlMTgtuqnTG_9nz0KoC-jQg",
+          "mode": "list",
+          "cachedResultName": "SEO_Results_Sheet",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1VuFBmNLDse8ZBQvrTGVOWlMTgtuqnTG_9nz0KoC-jQg/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1253515502,
+          "mode": "list",
+          "cachedResultName": "Analysis",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1VuFBmNLDse8ZBQvrTGVOWlMTgtuqnTG_9nz0KoC-jQg/edit#gid=1253515502"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Run Date",
+              "displayName": "Run Date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Topic",
+              "displayName": "Topic",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Section",
+              "displayName": "Section",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Item",
+              "displayName": "Item",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "URL",
+              "displayName": "URL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Details",
+              "displayName": "Details",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Opportunity",
+              "displayName": "Opportunity",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "a5467265-bd58-4875-a8f5-1090be878638",
+      "name": "Save Analysis to Google Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        10576,
+        1472
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "gD35PFFSkbQgPOdC",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const run=new Date().toISOString().slice(0,16).replace('T',' ');const topic=$('SEO Request Form').first().json.topic;const o=$input.first().json.output;const rows=[];const add=r=>rows.push({json:{'Run Date':run,'Topic':topic,...r}});\n\n(o.keyword_map||[]).forEach(k=>add({Keyword:k.keyword,Type:k.type,Intent:k.intent,'Target Section':k.target_section,Priority:k.priority,Source:k.source}));\nreturn rows;"
+      },
+      "id": "899abc8a-8203-4e99-948b-9819c4e53b8b",
+      "name": "Format Keywords Rows",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        9936,
+        1152
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1VuFBmNLDse8ZBQvrTGVOWlMTgtuqnTG_9nz0KoC-jQg",
+          "mode": "list",
+          "cachedResultName": "SEO_Results_Sheet",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1VuFBmNLDse8ZBQvrTGVOWlMTgtuqnTG_9nz0KoC-jQg/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1022000417,
+          "mode": "list",
+          "cachedResultName": "Keywords",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1VuFBmNLDse8ZBQvrTGVOWlMTgtuqnTG_9nz0KoC-jQg/edit#gid=1022000417"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Run Date",
+              "displayName": "Run Date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Topic",
+              "displayName": "Topic",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Keyword",
+              "displayName": "Keyword",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Type",
+              "displayName": "Type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Intent",
+              "displayName": "Intent",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Target Section",
+              "displayName": "Target Section",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Priority",
+              "displayName": "Priority",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Source",
+              "displayName": "Source",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "e46252d3-6d06-4eae-a0ad-b3eb65996869",
+      "name": "Save Keywords to Google Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        10144,
+        1408
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "gD35PFFSkbQgPOdC",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const run=new Date().toISOString().slice(0,16).replace('T',' ');const topic=$('SEO Request Form').first().json.topic;const o=$input.first().json.output;const rows=[];const add=r=>rows.push({json:{'Run Date':run,'Topic':topic,...r}});\n\nconst lang=$('SEO Request Form').first().json.language;\nreturn [{json:{'Run Date':run,'Topic':topic,'Language':lang,'Article (Markdown)':String($input.first().json.output).slice(0,49000)}}];"
+      },
+      "id": "92d978ea-12dd-4138-ae91-33c95ede5332",
+      "name": "Format Article Rows",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        10384,
+        944
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1VuFBmNLDse8ZBQvrTGVOWlMTgtuqnTG_9nz0KoC-jQg",
+          "mode": "list",
+          "cachedResultName": "SEO_Results_Sheet",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1VuFBmNLDse8ZBQvrTGVOWlMTgtuqnTG_9nz0KoC-jQg/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1698667552,
+          "mode": "list",
+          "cachedResultName": "Article",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1VuFBmNLDse8ZBQvrTGVOWlMTgtuqnTG_9nz0KoC-jQg/edit#gid=1698667552"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Run Date",
+              "displayName": "Run Date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Topic",
+              "displayName": "Topic",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Language",
+              "displayName": "Language",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Article (Markdown)",
+              "displayName": "Article (Markdown)",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "74ec9a9b-83ce-4869-802b-b7bc8d570a87",
+      "name": "Save Article to Google Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        10640,
+        1232
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "gD35PFFSkbQgPOdC",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const run=new Date().toISOString().slice(0,16).replace('T',' ');const topic=$('SEO Request Form').first().json.topic;const o=$input.first().json.output;const rows=[];const add=r=>rows.push({json:{'Run Date':run,'Topic':topic,...r}});\n\nadd({Item:'Meta Title',Area:'metadata',Value:o.meta_title,Recommendation:''});\nadd({Item:'Meta Description',Area:'metadata',Value:o.meta_description,Recommendation:''});\nadd({Item:'Slug',Area:'metadata',Value:o.suggested_slug,Recommendation:''});\n(o.on_page_recommendations||[]).forEach(r=>add({Item:'Recommendation',Area:r.area,Value:r.issue,Recommendation:r.recommendation}));\nreturn rows;"
+      },
+      "id": "354f8113-ec1d-4471-8c8c-640da5b00591",
+      "name": "Format SEO Rows",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        11168,
+        1088
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1VuFBmNLDse8ZBQvrTGVOWlMTgtuqnTG_9nz0KoC-jQg",
+          "mode": "list",
+          "cachedResultName": "SEO_Results_Sheet",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1VuFBmNLDse8ZBQvrTGVOWlMTgtuqnTG_9nz0KoC-jQg/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 108506771,
+          "mode": "list",
+          "cachedResultName": "SEO",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1VuFBmNLDse8ZBQvrTGVOWlMTgtuqnTG_9nz0KoC-jQg/edit#gid=108506771"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Run Date",
+              "displayName": "Run Date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Topic",
+              "displayName": "Topic",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Item",
+              "displayName": "Item",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Area",
+              "displayName": "Area",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Value",
+              "displayName": "Value",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Recommendation",
+              "displayName": "Recommendation",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "732b3b10-db9b-46be-b14b-a430131c41d4",
+      "name": "Save SEO to Google Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        11968,
+        1232
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "gD35PFFSkbQgPOdC",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const run=new Date().toISOString().slice(0,16).replace('T',' ');const topic=$('SEO Request Form').first().json.topic;const o=$input.first().json.output;const rows=[];const add=r=>rows.push({json:{'Run Date':run,'Topic':topic,...r}});\n\n(o.internal_links||[]).forEach(l=>add({'Target URL':l.target_url,'Anchor Text':l.anchor_text,Section:l.place_in_section,Reason:l.reason}));\nif(!rows.length) add({'Target URL':'(no pages provided)','Anchor Text':'',Section:'',Reason:''});\nreturn rows;"
+      },
+      "id": "36d9ed1a-859d-4111-ba75-56f8d50cb717",
+      "name": "Format Internal Links Rows",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        12368,
+        1152
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1VuFBmNLDse8ZBQvrTGVOWlMTgtuqnTG_9nz0KoC-jQg",
+          "mode": "list",
+          "cachedResultName": "SEO_Results_Sheet",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1VuFBmNLDse8ZBQvrTGVOWlMTgtuqnTG_9nz0KoC-jQg/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1662096107,
+          "mode": "list",
+          "cachedResultName": "Internal Links",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1VuFBmNLDse8ZBQvrTGVOWlMTgtuqnTG_9nz0KoC-jQg/edit#gid=1662096107"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Run Date",
+              "displayName": "Run Date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Topic",
+              "displayName": "Topic",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Target URL",
+              "displayName": "Target URL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Anchor Text",
+              "displayName": "Anchor Text",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Section",
+              "displayName": "Section",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Reason",
+              "displayName": "Reason",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "24a43c14-95d1-44f2-843e-2c486e63794a",
+      "name": "Save Internal Links to Google Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        12640,
+        1120
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "gD35PFFSkbQgPOdC",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const run=new Date().toISOString().slice(0,16).replace('T',' ');const topic=$('SEO Request Form').first().json.topic;\nreturn $input.all().map(i=>({json:{'Run Date':run,'Topic':topic,'Title':i.json.title,'URL':i.json.url,'Published Date':i.json.date,'Article Text':(i.json.text||'').slice(0,45000)}}));"
+      },
+      "id": "3be195c5-6c66-4b01-bc9d-4ff3573dff96",
+      "name": "Format Articles Rows",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        9920,
+        176
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1VuFBmNLDse8ZBQvrTGVOWlMTgtuqnTG_9nz0KoC-jQg",
+          "mode": "list",
+          "cachedResultName": "SEO_Results_Sheet",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1VuFBmNLDse8ZBQvrTGVOWlMTgtuqnTG_9nz0KoC-jQg/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 2001298203,
+          "mode": "list",
+          "cachedResultName": "Articles",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1VuFBmNLDse8ZBQvrTGVOWlMTgtuqnTG_9nz0KoC-jQg/edit#gid=2001298203"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Run Date",
+              "displayName": "Run Date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Topic",
+              "displayName": "Topic",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Section",
+              "displayName": "Section",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Item",
+              "displayName": "Item",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "URL",
+              "displayName": "URL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Details",
+              "displayName": "Details",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Opportunity",
+              "displayName": "Opportunity",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "63042f87-6fdd-4baf-bfb7-ab8b0cb2f584",
+      "name": "Save Articles to Google Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        10144,
+        176
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "gD35PFFSkbQgPOdC",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://analyticsdata.googleapis.com/v1beta/properties/{{ $(\"SEO Request Form\").first().json.ga4_property || \"\" }}:runReport",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleOAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ dateRanges:[{startDate:\"90daysAgo\",endDate:\"yesterday\"}], dimensions:[{name:\"pagePath\"}], metrics:[{name:\"screenPageViews\"},{name:\"activeUsers\"},{name:\"sessions\"}], orderBys:[{metric:{metricName:\"screenPageViews\"},desc:true}], limit:25 }) }}",
+        "options": {}
+      },
+      "id": "e9d9d61b-23d0-4e05-a410-c088579fe50b",
+      "name": "Google Analytics 4 Report",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        12704,
+        128
+      ],
+      "onError": "continueRegularOutput",
+      "notes": "Needs a Google OAuth2 API credential with scope https://www.googleapis.com/auth/analytics.readonly and Google Analytics Data API enabled."
+    },
+    {
+      "parameters": {
+        "jsCode": "const run=new Date().toISOString().slice(0,16).replace('T',' ');const topic=$('SEO Request Form').first().json.topic;\nconst rows=($input.first().json.rows)||[];\nreturn rows.map(r=>({json:{'Run Date':run,'Topic':topic,'Query':(r.keys||[])[0]||'','Clicks':r.clicks,'Impressions':r.impressions,'CTR':r.ctr,'Position':r.position}}));"
+      },
+      "id": "5b7d72dc-b934-4fce-a6df-39907bae9cac",
+      "name": "Format Search Console Rows",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        12512,
+        704
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1VuFBmNLDse8ZBQvrTGVOWlMTgtuqnTG_9nz0KoC-jQg",
+          "mode": "list",
+          "cachedResultName": "SEO_Results_Sheet",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1VuFBmNLDse8ZBQvrTGVOWlMTgtuqnTG_9nz0KoC-jQg/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 883322586,
+          "mode": "list",
+          "cachedResultName": "Search Console",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1VuFBmNLDse8ZBQvrTGVOWlMTgtuqnTG_9nz0KoC-jQg/edit#gid=883322586"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Run Date",
+              "displayName": "Run Date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Topic",
+              "displayName": "Topic",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Query",
+              "displayName": "Query",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Clicks",
+              "displayName": "Clicks",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Impressions",
+              "displayName": "Impressions",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CTR",
+              "displayName": "CTR",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Position",
+              "displayName": "Position",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "9c0c8f51-3f1c-49d0-815f-cf0230289b1a",
+      "name": "Save Search Console to Google Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        12752,
+        704
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "gD35PFFSkbQgPOdC",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const run=new Date().toISOString().slice(0,16).replace('T',' ');const topic=$('SEO Request Form').first().json.topic;\nconst rows=($input.first().json.rows)||[];\nreturn rows.map(r=>({json:{'Run Date':run,'Topic':topic,'Page Path':(r.dimensionValues||[])[0]?.value||'','Page Views':Number((r.metricValues||[])[0]?.value||0),'Active Users':Number((r.metricValues||[])[1]?.value||0),'Sessions':Number((r.metricValues||[])[2]?.value||0)}}));"
+      },
+      "id": "93424ae2-69fe-49c3-b876-260190ec9802",
+      "name": "Format Analytics Rows",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        12736,
+        896
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1VuFBmNLDse8ZBQvrTGVOWlMTgtuqnTG_9nz0KoC-jQg",
+          "mode": "list",
+          "cachedResultName": "SEO_Results_Sheet",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1VuFBmNLDse8ZBQvrTGVOWlMTgtuqnTG_9nz0KoC-jQg/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1620973698,
+          "mode": "list",
+          "cachedResultName": "Analytics",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1VuFBmNLDse8ZBQvrTGVOWlMTgtuqnTG_9nz0KoC-jQg/edit#gid=1620973698"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Run Date",
+              "displayName": "Run Date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Topic",
+              "displayName": "Topic",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Page Path",
+              "displayName": "Page Path",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Page Views",
+              "displayName": "Page Views",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Active Users",
+              "displayName": "Active Users",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Sessions",
+              "displayName": "Sessions",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "51ff4ac5-b47f-43db-9654-c8e6dc0aa812",
+      "name": "Save Analytics to Google Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        12976,
+        896
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "gD35PFFSkbQgPOdC",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Form inputs:\nTopic: {{ $(\"SEO Request Form\").first().json.topic }}\nNiche: {{ $(\"SEO Request Form\").first().json.niche || \"-\" }}\nLanguage: {{ $(\"SEO Request Form\").first().json.language }}\nNumber of articles: {{ Math.min(Number($(\"SEO Request Form\").first().json.articles_count || 5), 20) }}\nFrom date: {{ $(\"SEO Request Form\").first().json.from_date || \"not specified\" }}\nToday: {{ $now.toFormat(\"yyyy-MM-dd\") }}\nUser website (for context only): {{ $(\"SEO Request Form\").first().json.website }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "You are an autonomous SEO research agent. You receive the user's form inputs (topic, niche, language, number of articles, optional from-date, website) and must research the topic yourself using your tools.\nProcess: 1) Call Web Search several times with different queries (topic, niche, latest updates, official sources, competitors) in the requested language and also in English if useful. Do NOT restrict to the user's own website; search the whole web. 2) Pick the best distinct sources (different domains, prefer official/authoritative and recent; respect the from-date if given). 3) Call Fetch Page for each chosen URL to read the real article text. 4) Return exactly the requested number of articles (fewer only if not enough good sources exist).\nRules: never invent URLs, titles, dates or facts; use only what the tools returned. Date = publication date if visible, else empty. 'text' = a faithful, detailed summary/extract in your own words of the article's concrete findings, updates and numbers (up to ~1500 words), written in the requested language. If a page can't be fetched, use the search snippet and say so.",
+          "maxIterations": 25
+        }
+      },
+      "id": "de39d221-d671-4709-ade9-10cf93a14a49",
+      "name": "Research Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        9360,
+        -240
+      ]
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3.8-flash",
+        "options": {
+          "maxOutputTokens": 16384,
+          "temperature": 0.3
+        }
+      },
+      "id": "2c245e49-dadc-4134-b58d-9386ea13073b",
+      "name": "Gemini - Research",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        9280,
+        -20
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": null,
+          "name": "Gateway credits",
+          "__aiGatewayManaged": true
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "{\"articles\": [{\"title\": \"title\", \"url\": \"https://...\", \"date\": \"YYYY-MM-DD or empty\", \"text\": \"detailed summary of the article findings\"}]}"
+      },
+      "id": "9747e50d-7ff8-4462-89a9-39f06569500a",
+      "name": "Research Schema",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        9560,
+        -20
+      ]
+    },
+    {
+      "parameters": {
+        "query": "={{ $fromAI('query','The web search query','string') }}",
+        "additionalParameters": {
+          "count": "10",
+          "search_lang": "={{ $(\"SEO Request Form\").first().json.language === \"Arabic\" ? \"ar\" : \"en\" }}",
+          "freshness": "={{ $(\"SEO Request Form\").first().json.from_date ? $(\"SEO Request Form\").first().json.from_date + \"to\" + $now.toFormat(\"yyyy-MM-dd\") : \"\" }}"
+        }
+      },
+      "id": "17394cb8-4849-4c89-b9fa-5963f56f01c7",
+      "name": "Web Search",
+      "type": "@brave/n8n-nodes-brave-search.braveSearchTool",
+      "typeVersion": 1.1,
+      "position": [
+        9420,
+        -20
+      ],
+      "credentials": {
+        "braveSearchApi": {
+          "id": null,
+          "name": "Gateway credits",
+          "__aiGatewayManaged": true
+        }
+      }
+    },
+    {
+      "parameters": {
+        "toolDescription": "Fetch the readable content of a web page by URL. Use it to read each chosen article.",
+        "url": "={{ $fromAI('url','Full article URL from search results','string') }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "Mozilla/5.0 (compatible; SEOBot/1.0)"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 20000
+        },
+        "optimizeResponse": true,
+        "responseType": "html",
+        "cssSelector": "article, main, body",
+        "onlyContent": true,
+        "elementsToOmit": "script,style,nav,footer,header,aside,form",
+        "truncateResponse": true,
+        "maxLength": 12000
+      },
+      "id": "7372f506-b227-4c25-af01-5eb4a41976f0",
+      "name": "Fetch Page",
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.3,
+      "position": [
+        9500,
+        -20
+      ]
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "output.articles",
+        "options": {}
+      },
+      "id": "fe02e133-54b9-4e9b-b3b8-775af6b1cb35",
+      "name": "Split Articles",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1.1,
+      "position": [
+        9584,
+        -240
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "SEO Request Form": {
+      "main": [
+        [
+          {
+            "node": "Research Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Collect Search Results": {
+      "main": [
+        [
+          {
+            "node": "Autocomplete Keyword Ideas (free)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Autocomplete Keyword Ideas (free)": {
+      "main": [
+        [
+          {
+            "node": "Collect Keyword Ideas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Collect Keyword Ideas": {
+      "main": [
+        [
+          {
+            "node": "Article Analysis Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Article Analysis Agent": {
+      "main": [
+        [
+          {
+            "node": "Keyword Research Agent",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Format Analysis Rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini - Analysis": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Article Analysis Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analysis Schema": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Article Analysis Agent",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Keyword Research Agent": {
+      "main": [
+        [
+          {
+            "node": "AI Article Writer Agent",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Format Keywords Rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini - Keywords": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Keyword Research Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Keyword Schema": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Keyword Research Agent",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Article Writer Agent": {
+      "main": [
+        [
+          {
+            "node": "SEO Optimization & Metadata Agent",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Format Article Rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini - Writer": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Article Writer Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SEO Optimization & Metadata Agent": {
+      "main": [
+        [
+          {
+            "node": "Internal Linking Agent",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Format SEO Rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini - SEO": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "SEO Optimization & Metadata Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SEO Schema": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "SEO Optimization & Metadata Agent",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Internal Linking Agent": {
+      "main": [
+        [
+          {
+            "node": "Search Console Performance (free API)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Format Internal Links Rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini - Linking": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Internal Linking Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Linking Schema": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Internal Linking Agent",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search Console Performance (free API)": {
+      "main": [
+        [
+          {
+            "node": "Google Analytics 4 Report",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Format Search Console Rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Package Results": {
+      "main": [
+        [
+          {
+            "node": "Split Competitors",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Split Keywords",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Competitors": {
+      "main": [
+        [
+          {
+            "node": "Competitor Research Excel",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Keywords": {
+      "main": [
+        [
+          {
+            "node": "Keyword Analysis Excel",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Analysis Rows": {
+      "main": [
+        [
+          {
+            "node": "Save Analysis to Google Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Keywords Rows": {
+      "main": [
+        [
+          {
+            "node": "Save Keywords to Google Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Article Rows": {
+      "main": [
+        [
+          {
+            "node": "Save Article to Google Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format SEO Rows": {
+      "main": [
+        [
+          {
+            "node": "Save SEO to Google Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Internal Links Rows": {
+      "main": [
+        [
+          {
+            "node": "Save Internal Links to Google Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Articles Rows": {
+      "main": [
+        [
+          {
+            "node": "Save Articles to Google Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Analytics 4 Report": {
+      "main": [
+        [
+          {
+            "node": "Package Results",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Format Analytics Rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Search Console Rows": {
+      "main": [
+        [
+          {
+            "node": "Save Search Console to Google Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Analytics Rows": {
+      "main": [
+        [
+          {
+            "node": "Save Analytics to Google Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Research Agent": {
+      "main": [
+        [
+          {
+            "node": "Split Articles",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Articles": {
+      "main": [
+        [
+          {
+            "node": "Collect Search Results",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Format Articles Rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini - Research": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Research Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Research Schema": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Research Agent",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Web Search": {
+      "ai_tool": [
+        [
+          {
+            "node": "Research Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Page": {
+      "ai_tool": [
+        [
+          {
+            "node": "Research Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": true
+  },
+  "versionId": "dbd397ee-19ca-4ad3-900e-5eb99a154079",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "a53de0fda51b4bb3818af52e2e2d62566c59ccff164b9a0e326d1b9f2ae21829"
+  },
+  "nodeGroups": [
+    {
+      "id": "2a7f2a59-1f30-4179-912f-577ca53fa62c",
+      "nodeIds": [
+        "324fd3a5-e92b-4fa8-9ab7-d5bb804095e8",
+        "2eb81b15-2bff-4759-b0ca-5e5f6daebc2d",
+        "5f62ef74-340f-4480-ab7f-ec7d0c6c5fc4"
+      ],
+      "name": "Plan keywords",
+      "description": "Builds primary, secondary and related keyword map from real autocomplete data, with intent and priority"
+    }
+  ],
+  "id": "pHbVHUAc7GEq3Kl7",
+  "tags": []
+}
