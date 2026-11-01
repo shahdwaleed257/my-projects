@@ -1,0 +1,692 @@
+{
+  "name": "توقع المخزون وإعادة الطلب التلقائي (Google Sheets)",
+  "nodes": [
+    {
+      "parameters": {
+        "jsCode": "const forecast = $('Build Forecast Dataset').first().json;\nconst aiOutput = $('Demand Forecast Agent').first().json.output || '';\n\nreturn [{\n  json: {\n    report_date: forecast.report_date,\n    total_products: forecast.total_products,\n    critical_count: forecast.critical_count,\n    low_stock_count: forecast.low_stock_count,\n    reorder_count: forecast.reorder_count,\n    ok_count: forecast.ok_count,\n    critical_items: forecast.critical_items,\n    low_stock_items: forecast.low_stock_items,\n    reorder_items: forecast.reorder_items,\n    all_products: forecast.all_products,\n    summary_text: forecast.summary_text,\n    ai_output: aiOutput,\n    has_critical: forecast.critical_count > 0\n  }\n}];"
+      },
+      "id": "2a500a15-dd6e-4840-9136-3b96109f25f6",
+      "name": "Combine Forecast and AI Output",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        2288,
+        608
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1",
+              "name": "lookback_days",
+              "type": "number",
+              "value": 90
+            },
+            {
+              "id": "2",
+              "name": "forecast_days",
+              "type": "number",
+              "value": 30
+            },
+            {
+              "id": "3",
+              "name": "low_stock_threshold_days",
+              "type": "number",
+              "value": 14
+            },
+            {
+              "id": "4",
+              "name": "critical_stock_threshold_days",
+              "type": "number",
+              "value": 7
+            },
+            {
+              "id": "5",
+              "name": "report_date",
+              "type": "string",
+              "value": "={{ $now.format(\"yyyy-MM-dd\") }}"
+            },
+            {
+              "id": "6",
+              "name": "spreadsheet_id",
+              "type": "string",
+              "value": "1j4yCmiqYjGQVPvDuNeTtWisjIN24-R8wlk52pUrO6NY"
+            },
+            {
+              "id": "7",
+              "name": "alert_email",
+              "type": "string",
+              "value": "shahdwalied58@gmail.com"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "1af1c39b-3d42-454c-820d-96b410504c33",
+      "name": "Set Forecast Configuration",
+      "type": "n8n-nodes-base.set",
+      "position": [
+        1248,
+        624
+      ],
+      "typeVersion": 3.4
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Set Forecast Configuration').first().json.spreadsheet_id }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "سجل_المبيعات"
+        },
+        "options": {}
+      },
+      "id": "6b77e18f-6683-4f05-98f7-30d3c04d3f86",
+      "name": "Fetch Sales History",
+      "type": "n8n-nodes-base.googleSheets",
+      "position": [
+        1472,
+        528
+      ],
+      "typeVersion": 4.5,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "gD35PFFSkbQgPOdC",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Set Forecast Configuration').first().json.spreadsheet_id }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "المخزون_الحالي"
+        },
+        "options": {}
+      },
+      "id": "9564dfcd-613f-4ac2-84df-4a318c56defd",
+      "name": "Fetch Current Inventory",
+      "type": "n8n-nodes-base.googleSheets",
+      "position": [
+        1472,
+        720
+      ],
+      "typeVersion": 4.5,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "gD35PFFSkbQgPOdC",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "eb825449-d2a4-4916-beae-4ed884f7df3d",
+      "name": "Merge",
+      "type": "n8n-nodes-base.merge",
+      "position": [
+        1680,
+        608
+      ],
+      "typeVersion": 3.2
+    },
+    {
+      "parameters": {
+        "jsCode": "const salesItems = $('Fetch Sales History').all();\nconst inventoryItems = $('Fetch Current Inventory').all();\nconst config = $('Set Forecast Configuration').first().json;\n\nconst pick = (o, keys) => { for (const k of keys) { if (o[k] !== undefined && o[k] !== '') return o[k]; } return undefined; };\nconst num = (v, d = 0) => { const n = parseFloat(String(v === undefined ? '' : v).replace(/,/g, '')); return isNaN(n) ? d : n; };\nconst K = {\n  pid: ['كود المنتج', 'product_id', 'SKU', 'sku'],\n  units: ['الوحدات المباعة', 'units_sold', 'quantity', 'qty'],\n  date: ['التاريخ', 'date'],\n  name: ['اسم المنتج', 'product_name', 'name'],\n  stock: ['المخزون الحالي', 'current_stock', 'quantity'],\n  lead: ['مدة التوريد (يوم)', 'lead_time_days'],\n  rp: ['نقطة إعادة الطلب', 'reorder_point'],\n  cost: ['تكلفة الوحدة', 'unit_cost'],\n  sup: ['المورد', 'supplier']\n};\nconst AR = { CRITICAL: 'حرج', LOW: 'منخفض', REORDER: 'إعادة طلب', OK: 'سليم' };\n\nconst salesByProduct = {};\nfor (const item of salesItems) {\n  const s = item.json;\n  const pid = pick(s, K.pid);\n  if (!pid) continue;\n  if (!salesByProduct[pid]) salesByProduct[pid] = { total_units: 0 };\n  salesByProduct[pid].total_units += num(pick(s, K.units));\n}\n\nconst lookback = config.lookback_days || 90;\nconst inventoryProducts = [];\nfor (const item of inventoryItems) {\n  const inv = item.json;\n  const pid = pick(inv, K.pid);\n  if (!pid) continue;\n\n  const salesData = salesByProduct[pid] || { total_units: 0 };\n  const avgDailySales = salesData.total_units / lookback;\n  const currentStock = num(pick(inv, K.stock));\n  const leadTime = num(pick(inv, K.lead), 7);\n  const rpRaw = pick(inv, K.rp);\n  const reorderPoint = rpRaw !== undefined ? num(rpRaw) : avgDailySales * leadTime * 1.5;\n  const daysOfStock = avgDailySales > 0 ? Math.floor(currentStock / avgDailySales) : 999;\n  const projectedStockout = avgDailySales > 0 ? new Date(Date.now() + daysOfStock * 86400000).toISOString().split('T')[0] : 'لا يوجد';\n  const reorderQty = Math.ceil(avgDailySales * (config.forecast_days || 30) * 1.2);\n\n  let status = 'OK';\n  if (daysOfStock <= config.critical_stock_threshold_days) status = 'CRITICAL';\n  else if (daysOfStock <= config.low_stock_threshold_days) status = 'LOW';\n  else if (currentStock <= reorderPoint) status = 'REORDER';\n\n  inventoryProducts.push({\n    product_id: pid,\n    product_name: pick(inv, K.name) || pid,\n    current_stock: currentStock,\n    avg_daily_sales: Math.round(avgDailySales * 100) / 100,\n    days_of_stock: daysOfStock,\n    projected_stockout_date: projectedStockout,\n    reorder_quantity: reorderQty,\n    reorder_point: Math.round(reorderPoint),\n    lead_time_days: leadTime,\n    unit_cost: num(pick(inv, K.cost)),\n    supplier: pick(inv, K.sup) || 'غير محدد',\n    status,\n    status_ar: AR[status],\n    sales_30d: Math.round(avgDailySales * 30),\n    sales_90d: salesData.total_units\n  });\n}\n\ninventoryProducts.sort((a, b) => a.days_of_stock - b.days_of_stock);\n\nconst critical = inventoryProducts.filter(p => p.status === 'CRITICAL');\nconst lowStock = inventoryProducts.filter(p => p.status === 'LOW');\nconst reorderNeeded = inventoryProducts.filter(p => p.status === 'REORDER');\n\nreturn [{\n  json: {\n    report_date: config.report_date,\n    total_products: inventoryProducts.length,\n    critical_count: critical.length,\n    low_stock_count: lowStock.length,\n    reorder_count: reorderNeeded.length,\n    ok_count: inventoryProducts.filter(p => p.status === 'OK').length,\n    critical_items: critical,\n    low_stock_items: lowStock,\n    reorder_items: reorderNeeded,\n    all_products: inventoryProducts,\n    summary_text: inventoryProducts.slice(0, 30).map(p =>\n      p.product_id + ' | ' + p.product_name + ' | المخزون: ' + p.current_stock +\n      ' | أيام المخزون: ' + p.days_of_stock + ' | متوسط البيع اليومي: ' + p.avg_daily_sales +\n      ' | تاريخ النفاد: ' + p.projected_stockout_date + ' | التكلفة: ' + p.unit_cost +\n      ' | المورد: ' + p.supplier + ' | الحالة: ' + p.status_ar\n    ).join('\\n')\n  }\n}];"
+      },
+      "id": "aae6a52b-3104-411c-85f3-8d904b989368",
+      "name": "Build Forecast Dataset",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1824,
+        608
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=أنت محلل سلسلة إمداد خبير. حلّل لقطة المخزون التالية وأعدّ تقرير توقع الطلب باللغة العربية.\n\nتاريخ التقرير: {{ $json.report_date }}\nإجمالي المنتجات: {{ $json.total_products }}\nحرج (أقل من 7 أيام): {{ $json.critical_count }}\nمنخفض (أقل من 14 يوم): {{ $json.low_stock_count }}\nيحتاج إعادة طلب: {{ $json.reorder_count }}\n\nبيانات المخزون:\n{{ $json.summary_text }}\n\nالمنتجات الحرجة:\n{{ JSON.stringify($json.critical_items || []) }}\n\nاكتب التقرير بصيغة Markdown وباللغة العربية بالشكل التالي، وكل الأرقام بالعملة المحلية (جنيه):\n\n# تقرير المخزون وتوقع الطلب اليومي\n## {{ $json.report_date }}\n\n### تنبيهات حرجة (تحتاج تصرف فوري)\n[لكل منتج حرج: الاسم، الأيام المتبقية، الكمية المقترح طلبها]\n\n### توصيات إعادة الطلب (الـ 7 أيام القادمة)\n[قائمة مرتبة بالأولوية مع الكميات]\n\n### تحليل اتجاه الطلب\n[أنماط غير عادية، مؤشرات موسمية، حالات شاذة]\n\n### توقع الـ 30 يوم القادمة\n[صورة عامة لصحة المخزون]\n\n### أثر التكلفة\n[التكلفة التقديرية لأوامر إعادة الطلب المقترحة]\n\n### مخاطر سلسلة الإمداد\n[الاعتماد على مورد واحد، التركّز]\n\nكن محددًا بالأرقام ورتّب حسب الأثر على العمل.",
+        "options": {
+          "systemMessage": "أنت محلل سلسلة إمداد خبير. قدّم توصيات مخزون مبنية على البيانات تقلل نفاد المخزون وتحسّن رأس المال العامل. اكتب دائمًا باللغة العربية."
+        }
+      },
+      "id": "b288a667-baeb-4214-a410-8d2036211fdc",
+      "name": "Demand Forecast Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "position": [
+        2000,
+        608
+      ],
+      "typeVersion": 3.1
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4.1-mini",
+          "cachedResultName": "gpt-4.1-mini"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "id": "11e92896-dcec-4a88-a79b-ba47f1caddca",
+      "name": "OpenAI Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "position": [
+        2000,
+        848
+      ],
+      "typeVersion": 1.3
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "1",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              },
+              "leftValue": "={{ $json.has_critical }}",
+              "rightValue": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "3d06a0e4-7fda-42f1-8f7b-634f4a1ba175",
+      "name": "Critical Stock Exists?",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        2512,
+        640
+      ],
+      "typeVersion": 2.2
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Set Forecast Configuration').first().json.spreadsheet_id }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "التوقعات"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": null,
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "454af903-aa55-4470-89d2-41990fc783c6",
+      "name": "Write Forecast to Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "position": [
+        3620,
+        640
+      ],
+      "typeVersion": 4.5,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "gD35PFFSkbQgPOdC",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const f = $('Build Forecast Dataset').first().json;\nconst AR = { CRITICAL: 'حرج', LOW: 'منخفض', REORDER: 'إعادة طلب', OK: 'سليم' };\nconst all = [...(f.critical_items || []), ...(f.low_stock_items || []), ...(f.reorder_items || [])];\nconst seen = new Set();\nconst today = String(f.report_date).replace(/-/g, '');\nreturn all.filter(i => !seen.has(i.product_id) && seen.add(i.product_id)).map(i => ({ json: {\n  'رقم أمر الشراء': 'PO-' + i.product_id + '-' + today,\n  'كود المنتج': i.product_id,\n  'اسم المنتج': i.product_name,\n  'المورد': i.supplier,\n  'الكمية المطلوبة': i.reorder_quantity,\n  'تكلفة الوحدة': i.unit_cost,\n  'التكلفة الإجمالية': Math.round(i.reorder_quantity * i.unit_cost * 100) / 100,\n  'الأولوية': AR[i.status],\n  'أيام المخزون المتبقية': i.days_of_stock,\n  'تاريخ النفاد المتوقع': i.projected_stockout_date,\n  'تاريخ الإنشاء': f.report_date,\n  'الحالة': 'بانتظار الموافقة'\n} }));"
+      },
+      "id": "45dfc131-e4c7-4b96-884d-fbc8e310cb54",
+      "name": "Generate Purchase Orders",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        2768,
+        928
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1",
+              "name": "status",
+              "type": "string",
+              "value": "completed"
+            },
+            {
+              "id": "2",
+              "name": "report_date",
+              "type": "string",
+              "value": "={{ $('Build Forecast Dataset').first().json.report_date }}"
+            },
+            {
+              "id": "3",
+              "name": "products_analyzed",
+              "type": "number",
+              "value": "={{ $('Build Forecast Dataset').first().json.total_products }}"
+            },
+            {
+              "id": "4",
+              "name": "critical_alerts",
+              "type": "number",
+              "value": "={{ $('Build Forecast Dataset').first().json.critical_count }}"
+            },
+            {
+              "id": "7",
+              "name": "completed_at",
+              "type": "string",
+              "value": "={{ $now.toISO() }}"
+            },
+            {
+              "id": "bd3c635e-1fc1-4ecc-97d3-61056e8a8c6d",
+              "name": "pos_generated",
+              "type": "number",
+              "value": "={{ $('Generate Purchase Orders').isExecuted ? $('Generate Purchase Orders').all().length : 0 }}"
+            },
+            {
+              "id": "9d78838a-e618-4e5c-9969-1c269e1f6ab4",
+              "name": "total_reorder_value",
+              "type": "number",
+              "value": "={{ $('Generate Purchase Orders').isExecuted ? $('Generate Purchase Orders').all().reduce((s, i) => s + (i.json['التكلفة الإجمالية'] || 0), 0) : 0 }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "604a503d-5c60-48ea-bf23-d279758dbed6",
+      "name": "Log Forecast Completion",
+      "type": "n8n-nodes-base.set",
+      "position": [
+        3840,
+        640
+      ],
+      "typeVersion": 3.4,
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('Set Forecast Configuration').first().json.alert_email }}",
+        "subject": "=تنبيه مخزون حرج - {{ $json.report_date }}",
+        "emailType": "text",
+        "message": "=تنبيه مخزون حرج\nالتاريخ: {{ $json.report_date }}\nمنتجات حرجة (أقل من 7 أيام): {{ $json.critical_count }}\nمنتجات منخفضة: {{ $json.low_stock_count }}\nمنتجات تحتاج إعادة طلب: {{ $json.reorder_count }}\n\nالمنتجات الحرجة:\n{{ ($json.critical_items || []).map(p => '- ' + p.product_name + ' (' + p.product_id + ') - باقي ' + p.days_of_stock + ' يوم - الكمية المقترحة ' + p.reorder_quantity + ' وحدة من ' + p.supplier).join('\\n') }}\n\nملخص التوقعات:\n{{ ($json.ai_output || '').substring(0, 1500) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        2736,
+        544
+      ],
+      "id": "506cf27b-994e-4e62-bcdd-9de55fcb61a7",
+      "name": "Send a message1",
+      "webhookId": "bdc41bc3-5c6f-4983-af8e-11347be243c4",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "OYoqPz6xv039QIds",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "days",
+              "daysInterval": 1,
+              "triggerAtHour": 8
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        1072,
+        608
+      ],
+      "id": "e493750f-f490-4c72-a42d-c412fb076cd7",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "jsCode": "const c = $('Combine Forecast and AI Output').first().json;\nreturn [{ json: {\n  'التاريخ': c.report_date,\n  'إجمالي المنتجات': c.total_products,\n  'عدد المنتجات الحرجة': c.critical_count,\n  'عدد المنتجات المنخفضة': c.low_stock_count,\n  'عدد المنتجات المطلوب إعادة طلبها': c.reorder_count,\n  'عدد المنتجات السليمة': c.ok_count,\n  'المنتجات الحرجة': (c.critical_items || []).map(p => p.product_name + ' (' + p.days_of_stock + ' يوم)').join('، ') || 'لا يوجد',\n  'تقرير الذكاء الاصطناعي': c.ai_output || ''\n} }];"
+      },
+      "id": "a1111111-0000-4000-8000-000000000001",
+      "name": "Prepare Daily Report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2960,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Set Forecast Configuration').first().json.spreadsheet_id }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "التقرير_اليومي"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": null,
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "a1111111-0000-4000-8000-000000000002",
+      "name": "Write Daily Report",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        3180,
+        640
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "gD35PFFSkbQgPOdC",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const f = $('Build Forecast Dataset').first().json;\nreturn (f.all_products || []).map(p => ({ json: {\n  'التاريخ': f.report_date,\n  'كود المنتج': p.product_id,\n  'اسم المنتج': p.product_name,\n  'المخزون الحالي': p.current_stock,\n  'متوسط المبيعات اليومي': p.avg_daily_sales,\n  'أيام المخزون المتبقية': p.days_of_stock,\n  'تاريخ النفاد المتوقع': p.projected_stockout_date,\n  'نقطة إعادة الطلب': p.reorder_point,\n  'الكمية المقترحة للطلب': p.reorder_quantity,\n  'المورد': p.supplier,\n  'الحالة': p.status_ar\n} }));"
+      },
+      "id": "a1111111-0000-4000-8000-000000000003",
+      "name": "Prepare Forecast Rows",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3400,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Set Forecast Configuration').first().json.spreadsheet_id }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "أوامر_الشراء"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": null,
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "a1111111-0000-4000-8000-000000000004",
+      "name": "Write Purchase Orders",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2992,
+        928
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "gD35PFFSkbQgPOdC",
+          "name": "Google Sheets account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Build Forecast Dataset",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Demand Forecast Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Sales History": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Demand Forecast Agent": {
+      "main": [
+        [
+          {
+            "node": "Combine Forecast and AI Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Forecast Dataset": {
+      "main": [
+        [
+          {
+            "node": "Demand Forecast Agent",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Generate Purchase Orders",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Critical Stock Exists?": {
+      "main": [
+        [
+          {
+            "node": "Send a message1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Daily Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Current Inventory": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Write Forecast to Sheet": {
+      "main": [
+        [
+          {
+            "node": "Log Forecast Completion",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Purchase Orders": {
+      "main": [
+        [
+          {
+            "node": "Write Purchase Orders",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Forecast Configuration": {
+      "main": [
+        [
+          {
+            "node": "Fetch Sales History",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Fetch Current Inventory",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Combine Forecast and AI Output": {
+      "main": [
+        [
+          {
+            "node": "Critical Stock Exists?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send a message1": {
+      "main": [
+        [
+          {
+            "node": "Prepare Daily Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Set Forecast Configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Daily Report": {
+      "main": [
+        [
+          {
+            "node": "Write Daily Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write Daily Report": {
+      "main": [
+        [
+          {
+            "node": "Prepare Forecast Rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Forecast Rows": {
+      "main": [
+        [
+          {
+            "node": "Write Forecast to Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": true
+  },
+  "versionId": "04ae9e5a-9be4-4786-9cbe-8e6b648bd961",
+  "meta": {
+    "templateId": "15706",
+    "instanceId": "a53de0fda51b4bb3818af52e2e2d62566c59ccff164b9a0e326d1b9f2ae21829"
+  },
+  "nodeGroups": [],
+  "id": "8u5id1gP2e0c3w23",
+  "tags": []
+}
