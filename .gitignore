@@ -1,0 +1,25 @@
+# Python virtual environments and caches
+venv/
+.venv/
+env/
+testenv/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# R
+.Rhistory
+.RData
+.Rproj.user/
+
+# Secrets - never commit these
+kaggle.json
+.env
+*.pem
+*.key
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

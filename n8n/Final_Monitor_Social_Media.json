@@ -113,7 +113,7 @@
             },
             {
               "name": "access_token",
-              "value": "EAAc2oEY2R5MBRqZCOUeYJ85TMYmEe5R6An0OMjk269K0yFZCXbrJMC2o6JRiFcQQoOKazIRR9her8dcJ7TPk6XU42MXKQIHdhqM5WJNw1gjxOHLxOiL04OBkzH6LWhzVGfHJYvBhLN2ts8b8oZArTaLyNknEfvRloarSbZBrmfsNS5CI9fjtW9BZAIDY5tFV6Tpum"
+              "value": "<FACEBOOK_ACCESS_TOKEN>"
             }
           ]
         },
@@ -130,7 +130,7 @@
     },
     {
       "parameters": {
-        "url": "https://www.googleapis.com/youtube/v3/commentThreads?part=snippet&videoId=T05duJXj0q8&maxResults=10&key=AIzaSyBVYJNzGfjXBsKiJzVfnNxCRxVhdosY4sQ",
+        "url": "https://www.googleapis.com/youtube/v3/commentThreads?part=snippet&videoId=T05duJXj0q8&maxResults=10&key=<GOOGLE_API_KEY>",
         "options": {}
       },
       "type": "n8n-nodes-base.httpRequest",
@@ -189,7 +189,7 @@
             },
             {
               "name": "access_token",
-              "value": "EAAc2oEY2R5MBRqZCOUeYJ85TMYmEe5R6An0OMjk269K0yFZCXbrJMC2o6JRiFcQQoOKazIRR9her8dcJ7TPk6XU42MXKQIHdhqM5WJNw1gjxOHLxOiL04OBkzH6LWhzVGfHJYvBhLN2ts8b8oZArTaLyNknEfvRloarSbZBrmfsNS5CI9fjtW9BZAIDY5tFV6Tpum"
+              "value": "<FACEBOOK_ACCESS_TOKEN>"
             }
           ]
         },
@@ -221,7 +221,7 @@
     {
       "parameters": {
         "toolDescription": "Get YouTube comments to monitor sentiment",
-        "url": "https://www.googleapis.com/youtube/v3/commentThreads?part=snippet&videoId=T05duJXj0q8&maxResults=10&key=AIzaSyBVYJNzGfjXBsKiJzVfnNxCRxVhdosY4sQ",
+        "url": "https://www.googleapis.com/youtube/v3/commentThreads?part=snippet&videoId=T05duJXj0q8&maxResults=10&key=<GOOGLE_API_KEY>",
         "options": {}
       },
       "type": "n8n-nodes-base.httpRequestTool",
@@ -246,7 +246,7 @@
             },
             {
               "name": "access_token",
-              "value": "EAAc2oEY2R5MBRqZCOUeYJ85TMYmEe5R6An0OMjk269K0yFZCXbrJMC2o6JRiFcQQoOKazIRR9her8dcJ7TPk6XU42MXKQIHdhqM5WJNw1gjxOHLxOiL04OBkzH6LWhzVGfHJYvBhLN2ts8b8oZArTaLyNknEfvRloarSbZBrmfsNS5CI9fjtW9BZAIDY5tFV6Tpum"
+              "value": "<FACEBOOK_ACCESS_TOKEN>"
             }
           ]
         },
@@ -273,7 +273,7 @@
             },
             {
               "name": "access_token",
-              "value": "EAAc2oEY2R5MBRqZCOUeYJ85TMYmEe5R6An0OMjk269K0yFZCXbrJMC2o6JRiFcQQoOKazIRR9her8dcJ7TPk6XU42MXKQIHdhqM5WJNw1gjxOHLxOiL04OBkzH6LWhzVGfHJYvBhLN2ts8b8oZArTaLyNknEfvRloarSbZBrmfsNS5CI9fjtW9BZAIDY5tFV6Tpum"
+              "value": "<FACEBOOK_ACCESS_TOKEN>"
             }
           ]
         },
@@ -310,7 +310,7 @@
     {
       "parameters": {
         "toolDescription": "Fetches recent YouTube comments mentioning Apple. Use this when the user asks about YouTube sentiment, opinions, or comments.",
-        "url": "https://www.googleapis.com/youtube/v3/commentThreads?part=snippet&videoId=T05duJXj0q8&maxResults=10&key=AIzaSyBVYJNzGfjXBsKiJzVfnNxCRxVhdosY4sQ",
+        "url": "https://www.googleapis.com/youtube/v3/commentThreads?part=snippet&videoId=T05duJXj0q8&maxResults=10&key=<GOOGLE_API_KEY>",
         "options": {}
       },
       "type": "n8n-nodes-base.httpRequestTool",
@@ -335,7 +335,7 @@
             },
             {
               "name": "access_token",
-              "value": "EAAc2oEY2R5MBRqZCOUeYJ85TMYmEe5R6An0OMjk269K0yFZCXbrJMC2o6JRiFcQQoOKazIRR9her8dcJ7TPk6XU42MXKQIHdhqM5WJNw1gjxOHLxOiL04OBkzH6LWhzVGfHJYvBhLN2ts8b8oZArTaLyNknEfvRloarSbZBrmfsNS5CI9fjtW9BZAIDY5tFV6Tpum"
+              "value": "<FACEBOOK_ACCESS_TOKEN>"
             }
           ]
         },
@@ -363,7 +363,7 @@
             },
             {
               "name": "access_token",
-              "value": "EAAc2oEY2R5MBRqZCOUeYJ85TMYmEe5R6An0OMjk269K0yFZCXbrJMC2o6JRiFcQQoOKazIRR9her8dcJ7TPk6XU42MXKQIHdhqM5WJNw1gjxOHLxOiL04OBkzH6LWhzVGfHJYvBhLN2ts8b8oZArTaLyNknEfvRloarSbZBrmfsNS5CI9fjtW9BZAIDY5tFV6Tpum"
+              "value": "<FACEBOOK_ACCESS_TOKEN>"
             }
           ]
         },
