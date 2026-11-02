@@ -1,0 +1,8 @@
+# Keep GitHub's language bar honest.
+# Jupyter notebooks are huge (embedded outputs and images), so they would otherwise
+# make the repository show up as ~100% "Jupyter Notebook" and hide the PHP, Python,
+# JavaScript, HTML and CSS code. Exclude them from the language statistics.
+*.ipynb linguist-vendored
+
+# Third-party demo (SMART-pred) - not my own code, so keep it out of the statistics too.
+"Rstudio projects/**" linguist-vendored
