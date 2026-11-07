@@ -1,6 +1,6 @@
 # Shahd Waleed Abdelhaleem — Projects Portfolio
 
-AI & Data Science student at the Faculty of Computer Science and Artificial Intelligence, Beni Suef National University (Egypt).
+AI & Data Science graduated from the Faculty of Computer Science and Artificial Intelligence, Beni Suef National University (Egypt).
 This repository collects my work in **AI business automation, machine learning, deep learning, data analytics, BI dashboards and web development**.
 
 - Email: shahdwalied58@gmail.com
